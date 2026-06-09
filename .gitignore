@@ -1,0 +1,13 @@
+.env
+service-account-key.json
+client_secret.json
+client_secret_*.json
+token.json
+data/kpi-store.json
+data/kpi-store.json.bak
+data/*.bak
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
