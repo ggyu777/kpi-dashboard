@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { defaultAdRevenues } from "./constants";
+import * as jsonStore from "./json-store";
 
 let sql: ReturnType<typeof postgres> | null = null;
 let initialized = false;
@@ -12,6 +12,10 @@ function databaseUrl(): string | null {
 
 export function usingPostgres(): boolean {
   return databaseUrl() !== null;
+}
+
+export function storageBackend(): "postgres" | "blob" | "json" {
+  return jsonStore.storageLabel();
 }
 
 function getSql() {
@@ -42,13 +46,41 @@ export async function initDb() {
   initialized = true;
 }
 
-export async function getTargets(week: string) {
+export const getTargets = (week: string) => (usingPostgres() ? pgGetTargets(week) : jsonStore.getTargets(week));
+export const saveTargets = (week: string, targets: Record<string, number>) =>
+  usingPostgres() ? pgSaveTargets(week, targets) : jsonStore.saveTargets(week, targets);
+export const getManualData = (week: string) => (usingPostgres() ? pgGetManualData(week) : jsonStore.getManualData(week));
+export const saveManualData = (week: string, data: Record<string, number>) =>
+  usingPostgres() ? pgSaveManualData(week, data) : jsonStore.saveManualData(week, data);
+export const getAdConversions = (week: string) => (usingPostgres() ? pgGetAdConversions(week) : jsonStore.getAdConversions(week));
+export const saveAdConversions = (week: string, rates: Record<string, number>) =>
+  usingPostgres() ? pgSaveAdConversions(week, rates) : jsonStore.saveAdConversions(week, rates);
+export const getAdPlacementMeta = (week: string) => (usingPostgres() ? pgGetAdPlacementMeta(week) : jsonStore.getAdPlacementMeta(week));
+export const saveAdPlacementMetaField = (week: string, placement: string, field: string, value: unknown) =>
+  usingPostgres() ? pgSaveAdPlacementMetaField(week, placement, field, value) : jsonStore.saveAdPlacementMetaField(week, placement, field, value);
+export const getWeeklyNotes = (week: string) => (usingPostgres() ? pgGetWeeklyNotes(week) : jsonStore.getWeeklyNotes(week));
+export const saveWeeklyNotes = (week: string, a: string, b: string, c: string) =>
+  usingPostgres() ? pgSaveWeeklyNotes(week, a, b, c) : jsonStore.saveWeeklyNotes(week, a, b, c);
+export const getWeeklyTasks = (week: string) => (usingPostgres() ? pgGetWeeklyTasks(week) : jsonStore.getWeeklyTasks(week));
+export const saveWeeklyTasks = (week: string, tasks: Array<Record<string, unknown>>) =>
+  usingPostgres() ? pgSaveWeeklyTasks(week, tasks) : jsonStore.saveWeeklyTasks(week, tasks);
+export const getMonthlyFeedback = (month: string) => (usingPostgres() ? pgGetMonthlyFeedback(month) : jsonStore.getMonthlyFeedback(month));
+export const saveMonthlyFeedback = (month: string, feedback: string) =>
+  usingPostgres() ? pgSaveMonthlyFeedback(month, feedback) : jsonStore.saveMonthlyFeedback(month, feedback);
+export const getMonthlyPlan = (month: string) => (usingPostgres() ? pgGetMonthlyPlan(month) : jsonStore.getMonthlyPlan(month));
+export const saveMonthlyPlan = (month: string, data: Record<string, unknown>) =>
+  usingPostgres() ? pgSaveMonthlyPlan(month, data) : jsonStore.saveMonthlyPlan(month, data);
+export const getWeeklyPlan = (week: string) => (usingPostgres() ? pgGetWeeklyPlan(week) : jsonStore.getWeeklyPlan(week));
+export const saveWeeklyPlan = (week: string, data: Record<string, unknown>) =>
+  usingPostgres() ? pgSaveWeeklyPlan(week, data) : jsonStore.saveWeeklyPlan(week, data);
+
+async function pgGetTargets(week: string) {
   const db = getSql();
   const rows = await db`SELECT kpi_id, target FROM kpi_targets WHERE week = ${week}`;
   return Object.fromEntries(rows.map((r) => [r.kpi_id, Number(r.target)]));
 }
 
-export async function saveTargets(week: string, targets: Record<string, number>) {
+async function pgSaveTargets(week: string, targets: Record<string, number>) {
   const db = getSql();
   await db`DELETE FROM kpi_targets WHERE week = ${week}`;
   for (const [kpiId, target] of Object.entries(targets)) {
@@ -56,13 +88,13 @@ export async function saveTargets(week: string, targets: Record<string, number>)
   }
 }
 
-export async function getManualData(week: string) {
+async function pgGetManualData(week: string) {
   const db = getSql();
   const rows = await db`SELECT kpi_id, value FROM kpi_manual_data WHERE week = ${week}`;
   return Object.fromEntries(rows.map((r) => [r.kpi_id, Number(r.value)]));
 }
 
-export async function saveManualData(week: string, data: Record<string, number>) {
+async function pgSaveManualData(week: string, data: Record<string, number>) {
   const db = getSql();
   await db`DELETE FROM kpi_manual_data WHERE week = ${week}`;
   for (const [kpiId, value] of Object.entries(data)) {
@@ -70,13 +102,13 @@ export async function saveManualData(week: string, data: Record<string, number>)
   }
 }
 
-export async function getAdConversions(week: string) {
+async function pgGetAdConversions(week: string) {
   const db = getSql();
   const rows = await db`SELECT placement, conversion_rate FROM ad_conversions WHERE week = ${week}`;
   return Object.fromEntries(rows.map((r) => [r.placement, Number(r.conversion_rate)]));
 }
 
-export async function saveAdConversions(week: string, rates: Record<string, number>) {
+async function pgSaveAdConversions(week: string, rates: Record<string, number>) {
   const db = getSql();
   await db`DELETE FROM ad_conversions WHERE week = ${week}`;
   for (const [placement, rate] of Object.entries(rates)) {
@@ -84,20 +116,13 @@ export async function saveAdConversions(week: string, rates: Record<string, numb
   }
 }
 
-export async function getAdPlacementMeta(week: string) {
+async function pgGetAdPlacementMeta(week: string) {
   const db = getSql();
   const rows = await db`SELECT placement, revenue, note FROM ad_placement_meta WHERE week = ${week}`;
-  return Object.fromEntries(
-    rows.map((r) => [r.placement, { revenue: r.revenue, note: r.note ?? "" }]),
-  );
+  return Object.fromEntries(rows.map((r) => [r.placement, { revenue: r.revenue, note: r.note ?? "" }]));
 }
 
-export async function saveAdPlacementMetaField(
-  week: string,
-  placement: string,
-  field: string,
-  value: unknown,
-) {
+async function pgSaveAdPlacementMetaField(week: string, placement: string, field: string, value: unknown) {
   const db = getSql();
   const existing = await db`SELECT * FROM ad_placement_meta WHERE week = ${week} AND placement = ${placement}`;
   let revenue = existing[0]?.revenue ?? null;
@@ -111,140 +136,87 @@ export async function saveAdPlacementMetaField(
   `;
 }
 
-export async function getWeeklyNotes(week: string) {
+async function pgGetWeeklyNotes(week: string) {
   const db = getSql();
   const rows = await db`SELECT * FROM weekly_notes WHERE week = ${week}`;
   if (!rows.length) return { week, kpi_summary: "", project_progress: "", next_week_strategy: "" };
   const r = rows[0];
-  return {
-    week,
-    kpi_summary: r.kpi_summary ?? "",
-    project_progress: r.project_progress ?? "",
-    next_week_strategy: r.next_week_strategy ?? "",
-  };
+  return { week, kpi_summary: r.kpi_summary ?? "", project_progress: r.project_progress ?? "", next_week_strategy: r.next_week_strategy ?? "" };
 }
 
-export async function saveWeeklyNotes(
-  week: string,
-  kpiSummary: string,
-  projectProgress: string,
-  nextWeekStrategy: string,
-) {
+async function pgSaveWeeklyNotes(week: string, kpiSummary: string, projectProgress: string, nextWeekStrategy: string) {
   const db = getSql();
   await db`
     INSERT INTO weekly_notes (week, kpi_summary, project_progress, next_week_strategy)
     VALUES (${week}, ${kpiSummary}, ${projectProgress}, ${nextWeekStrategy})
-    ON CONFLICT (week) DO UPDATE SET
-      kpi_summary = EXCLUDED.kpi_summary,
-      project_progress = EXCLUDED.project_progress,
-      next_week_strategy = EXCLUDED.next_week_strategy
+    ON CONFLICT (week) DO UPDATE SET kpi_summary = EXCLUDED.kpi_summary, project_progress = EXCLUDED.project_progress, next_week_strategy = EXCLUDED.next_week_strategy
   `;
 }
 
-export async function getWeeklyTasks(week: string) {
+async function pgGetWeeklyTasks(week: string) {
   const db = getSql();
   const rows = await db`SELECT tasks FROM weekly_tasks WHERE week = ${week}`;
   return (rows[0]?.tasks as Array<Record<string, unknown>>) ?? [];
 }
 
-export async function saveWeeklyTasks(week: string, tasks: Array<Record<string, unknown>>) {
+async function pgSaveWeeklyTasks(week: string, tasks: Array<Record<string, unknown>>) {
   const db = getSql();
-  await db`
-    INSERT INTO weekly_tasks (week, tasks) VALUES (${week}, ${db.json(tasks as never)})
-    ON CONFLICT (week) DO UPDATE SET tasks = EXCLUDED.tasks
-  `;
+  await db`INSERT INTO weekly_tasks (week, tasks) VALUES (${week}, ${db.json(tasks as never)}) ON CONFLICT (week) DO UPDATE SET tasks = EXCLUDED.tasks`;
 }
 
-export async function getMonthlyFeedback(month: string) {
+async function pgGetMonthlyFeedback(month: string) {
   const db = getSql();
   const rows = await db`SELECT feedback FROM monthly_feedback WHERE month = ${month}`;
   return rows[0]?.feedback ?? "";
 }
 
-export async function saveMonthlyFeedback(month: string, feedback: string) {
+async function pgSaveMonthlyFeedback(month: string, feedback: string) {
   const db = getSql();
-  await db`
-    INSERT INTO monthly_feedback (month, feedback) VALUES (${month}, ${feedback})
-    ON CONFLICT (month) DO UPDATE SET feedback = EXCLUDED.feedback
-  `;
+  await db`INSERT INTO monthly_feedback (month, feedback) VALUES (${month}, ${feedback}) ON CONFLICT (month) DO UPDATE SET feedback = EXCLUDED.feedback`;
 }
 
-export async function getMonthlyPlan(month: string) {
+async function pgGetMonthlyPlan(month: string) {
+  const { defaultAdRevenues } = await import("./constants");
   const db = getSql();
   const rows = await db`SELECT * FROM monthly_plans WHERE month = ${month}`;
   if (!rows.length) {
-    return {
-      month,
-      author: "",
-      north_star: "",
-      mau_target: 0,
-      goals: [],
-      kpt_keep: "",
-      kpt_problem: "",
-      kpt_try: "",
-      next_actions: [],
-      ad_revenues: defaultAdRevenues(),
-    };
+    return { month, author: "", north_star: "", mau_target: 0, goals: [], kpt_keep: "", kpt_problem: "", kpt_try: "", next_actions: [], ad_revenues: defaultAdRevenues() };
   }
   const r = rows[0];
   return {
-    month,
-    author: r.author ?? "",
-    north_star: r.north_star ?? "",
-    mau_target: r.mau_target ?? 0,
-    goals: r.goals ?? [],
-    kpt_keep: r.kpt_keep ?? "",
-    kpt_problem: r.kpt_problem ?? "",
-    kpt_try: r.kpt_try ?? "",
-    next_actions: r.next_actions ?? [],
-    ad_revenues: { ...defaultAdRevenues(), ...(r.ad_revenues as Record<string, number>) },
+    month, author: r.author ?? "", north_star: r.north_star ?? "", mau_target: r.mau_target ?? 0,
+    goals: r.goals ?? [], kpt_keep: r.kpt_keep ?? "", kpt_problem: r.kpt_problem ?? "", kpt_try: r.kpt_try ?? "",
+    next_actions: r.next_actions ?? [], ad_revenues: { ...defaultAdRevenues(), ...(r.ad_revenues as Record<string, number>) },
   };
 }
 
-export async function saveMonthlyPlan(month: string, data: Record<string, unknown>) {
+async function pgSaveMonthlyPlan(month: string, data: Record<string, unknown>) {
   const db = getSql();
   await db`
     INSERT INTO monthly_plans (month, author, north_star, mau_target, goals, kpt_keep, kpt_problem, kpt_try, next_actions, ad_revenues)
-    VALUES (
-      ${month}, ${String(data.author ?? "")}, ${String(data.north_star ?? "")},
-      ${Number(data.mau_target ?? 0)}, ${db.json((data.goals ?? []) as never)},
-      ${String(data.kpt_keep ?? "")}, ${String(data.kpt_problem ?? "")}, ${String(data.kpt_try ?? "")},
-      ${db.json((data.next_actions ?? []) as never)}, ${db.json((data.ad_revenues ?? {}) as never)}
-    )
-    ON CONFLICT (month) DO UPDATE SET
-      author = EXCLUDED.author, north_star = EXCLUDED.north_star, mau_target = EXCLUDED.mau_target,
-      goals = EXCLUDED.goals, kpt_keep = EXCLUDED.kpt_keep, kpt_problem = EXCLUDED.kpt_problem,
-      kpt_try = EXCLUDED.kpt_try, next_actions = EXCLUDED.next_actions, ad_revenues = EXCLUDED.ad_revenues
+    VALUES (${month}, ${String(data.author ?? "")}, ${String(data.north_star ?? "")}, ${Number(data.mau_target ?? 0)},
+      ${db.json((data.goals ?? []) as never)}, ${String(data.kpt_keep ?? "")}, ${String(data.kpt_problem ?? "")}, ${String(data.kpt_try ?? "")},
+      ${db.json((data.next_actions ?? []) as never)}, ${db.json((data.ad_revenues ?? {}) as never)})
+    ON CONFLICT (month) DO UPDATE SET author = EXCLUDED.author, north_star = EXCLUDED.north_star, mau_target = EXCLUDED.mau_target,
+      goals = EXCLUDED.goals, kpt_keep = EXCLUDED.kpt_keep, kpt_problem = EXCLUDED.kpt_problem, kpt_try = EXCLUDED.kpt_try,
+      next_actions = EXCLUDED.next_actions, ad_revenues = EXCLUDED.ad_revenues
   `;
 }
 
-export async function getWeeklyPlan(week: string) {
+async function pgGetWeeklyPlan(week: string) {
+  const { defaultAdRevenues } = await import("./constants");
   const db = getSql();
   const rows = await db`SELECT * FROM weekly_plans WHERE week = ${week}`;
-  if (!rows.length) {
-    return { week, author: "", north_star: "", goals: [], actions: [], ad_revenues: defaultAdRevenues() };
-  }
+  if (!rows.length) return { week, author: "", north_star: "", goals: [], actions: [], ad_revenues: defaultAdRevenues() };
   const r = rows[0];
-  return {
-    week,
-    author: r.author ?? "",
-    north_star: r.north_star ?? "",
-    goals: r.goals ?? [],
-    actions: r.actions ?? [],
-    ad_revenues: { ...defaultAdRevenues(), ...(r.ad_revenues as Record<string, number>) },
-  };
+  return { week, author: r.author ?? "", north_star: r.north_star ?? "", goals: r.goals ?? [], actions: r.actions ?? [], ad_revenues: { ...defaultAdRevenues(), ...(r.ad_revenues as Record<string, number>) } };
 }
 
-export async function saveWeeklyPlan(week: string, data: Record<string, unknown>) {
+async function pgSaveWeeklyPlan(week: string, data: Record<string, unknown>) {
   const db = getSql();
   await db`
     INSERT INTO weekly_plans (week, author, north_star, goals, actions, ad_revenues)
-    VALUES (
-      ${week}, ${String(data.author ?? "")}, ${String(data.north_star ?? "")},
-      ${db.json((data.goals ?? []) as never)}, ${db.json((data.actions ?? []) as never)}, ${db.json((data.ad_revenues ?? {}) as never)}
-    )
-    ON CONFLICT (week) DO UPDATE SET
-      author = EXCLUDED.author, north_star = EXCLUDED.north_star,
-      goals = EXCLUDED.goals, actions = EXCLUDED.actions, ad_revenues = EXCLUDED.ad_revenues
+    VALUES (${week}, ${String(data.author ?? "")}, ${String(data.north_star ?? "")}, ${db.json((data.goals ?? []) as never)}, ${db.json((data.actions ?? []) as never)}, ${db.json((data.ad_revenues ?? {}) as never)})
+    ON CONFLICT (week) DO UPDATE SET author = EXCLUDED.author, north_star = EXCLUDED.north_star, goals = EXCLUDED.goals, actions = EXCLUDED.actions, ad_revenues = EXCLUDED.ad_revenues
   `;
 }

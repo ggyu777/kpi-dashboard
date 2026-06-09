@@ -23,14 +23,27 @@ npm run dev
 # → http://localhost:3000
 ```
 
-## Supabase 설정
+## 데이터 저장 (3가지 중 택1)
 
-1. [supabase.com](https://supabase.com)에서 프로젝트 생성
-2. SQL Editor에서 `supabase/schema.sql` 실행
-3. Settings → Database → **Connection string (URI)** 복사
-4. Vercel / `.env.local`에 `DATABASE_URL` 로 설정
+| 방식 | env | 용도 |
+|------|-----|------|
+| **Vercel Blob** (추천·무료) | `BLOB_READ_WRITE_TOKEN` | Supabase 없이 Vercel 배포 |
+| 로컬 JSON | (없음) | `npm run dev` 로컬만 |
+| Postgres | `DATABASE_URL` | Supabase / Neon / 로컬 Postgres |
 
-기존 로컬 Postgres 데이터가 있으면 동일 connection string으로 이관하면 됩니다.
+### Vercel Blob (Supabase 대안)
+
+1. Vercel Dashboard → Storage → **Blob** 생성 → 프로젝트 연결
+2. `BLOB_READ_WRITE_TOKEN` 자동 주입됨
+3. 기존 데이터 이관:
+   ```bash
+   BLOB_READ_WRITE_TOKEN=... npx tsx scripts/upload-store-to-blob.ts
+   ```
+
+### Supabase / Neon (Postgres)
+
+1. SQL Editor에서 `supabase/schema.sql` 실행
+2. `DATABASE_URL` 설정 (Neon 무료도 동일하게 동작)
 
 ## Vercel 배포
 
