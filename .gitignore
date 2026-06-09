@@ -1,4 +1,5 @@
 .env
+.env.local
 service-account-key.json
 client_secret.json
 client_secret_*.json
@@ -11,3 +12,6 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+node_modules/
+.next/
+legacy-python/
