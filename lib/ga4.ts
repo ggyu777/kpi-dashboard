@@ -1,4 +1,4 @@
-import { BetaAnalyticsDataClient } from "@google-analytics/data";
+import type { BetaAnalyticsDataClient as BetaAnalyticsDataClientType } from "@google-analytics/data";
 import { JWT, OAuth2Client } from "google-auth-library";
 import path from "path";
 import fs from "fs";
@@ -15,15 +15,16 @@ import { getWeekDateRange } from "./week";
 const GA4_SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"];
 const TOKEN_FILE = path.join(process.cwd(), "token.json");
 
-let clientPromise: Promise<BetaAnalyticsDataClient | null> | null = null;
+let clientPromise: Promise<BetaAnalyticsDataClientType | null> | null = null;
 
-async function getGa4Client(): Promise<BetaAnalyticsDataClient | null> {
+async function getGa4Client(): Promise<BetaAnalyticsDataClientType | null> {
   if (!clientPromise) clientPromise = createClient();
   return clientPromise;
 }
 
-async function createClient(): Promise<BetaAnalyticsDataClient | null> {
+async function createClient(): Promise<BetaAnalyticsDataClientType | null> {
   try {
+    const { BetaAnalyticsDataClient } = await import("@google-analytics/data");
     if (fs.existsSync(TOKEN_FILE)) {
       const raw = JSON.parse(fs.readFileSync(TOKEN_FILE, "utf8"));
       const oauth = new OAuth2Client();

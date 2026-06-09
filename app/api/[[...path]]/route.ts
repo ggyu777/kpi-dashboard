@@ -1,11 +1,17 @@
-import { handleApi } from "@/lib/api/router";
+import { NextResponse } from "next/server";
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
 async function dispatch(method: string, req: Request, ctx: Ctx) {
-  const { path: segments } = await ctx.params;
-  const pathname = "/api" + (segments?.length ? "/" + segments.join("/") : "");
-  return handleApi(method, pathname, req);
+  try {
+    const { handleApi } = await import("@/lib/api/router");
+    const { path: segments } = await ctx.params;
+    const pathname = "/api" + (segments?.length ? "/" + segments.join("/") : "");
+    return await handleApi(method, pathname, req);
+  } catch (e) {
+    console.error("[api]", e);
+    return NextResponse.json({ detail: String(e) }, { status: 500 });
+  }
 }
 
 export async function GET(req: Request, ctx: Ctx) {
