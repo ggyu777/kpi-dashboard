@@ -655,12 +655,13 @@ export async function handleApi(method: string, pathname: string, req: Request) 
   }
 
   if (pathname.startsWith("/api/") && (pathname.endsWith("/generate-md"))) {
-    const target = pathname.includes("monthly") ? q.get("month") ?? getMonthKey() : q.get("week") ?? getIsoWeekKey();
-    const proxyUrl = pathname.includes("monthly")
+    const isMonthly = pathname.includes("monthly");
+    const target = isMonthly ? q.get("month") ?? getMonthKey() : q.get("week") ?? getIsoWeekKey();
+    const proxyUrl = isMonthly
       ? `${url.origin}/api/monthly-plan?month=${target}`
       : `${url.origin}/api/weekly-plan?week=${target}`;
     const data = await fetch(proxyUrl).then((r) => r.json());
-    const md = `# KPI Plan export\n\n> Auto-generated stub for ${target}\n\n\`\`\`json\n${JSON.stringify(data, null, 2).slice(0, 8000)}\n\`\`\``;
+    const md = isMonthly ? buildMonthlyMd(data) : buildWeeklyMd(data);
     return new NextResponse(md, {
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
@@ -670,4 +671,292 @@ export async function handleApi(method: string, pathname: string, req: Request) 
   }
 
   return NextResponse.json({ detail: "Not found" }, { status: 404 });
+}
+
+// ── MD builders ──────────────────────────────────────────────────────────────
+
+function fmtPct(v: number | string | null | undefined): string {
+  if (v == null || v === "") return "—";
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (!isFinite(n)) return "—";
+  return (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
+}
+
+function fmtNum(v: number | null | undefined): string {
+  if (v == null) return "0";
+  return v.toLocaleString("ko-KR");
+}
+
+function statusEmoji(rate: number | string | null | undefined): string {
+  const n = typeof rate === "string" ? parseFloat(rate) : (rate ?? 0);
+  if (n >= 80) return "🟢";
+  if (n >= 30) return "🟡";
+  return "🔴";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildWeeklyMd(d: any): string {
+  const weekLabel = d.week_label ?? d.week ?? "";
+  const dataLabel = d.data_week_label ?? d.data_week ?? "";
+  const dr = d.date_range ?? {};
+  const ddr = d.data_date_range ?? {};
+  const planStart = dr.start ?? "";
+  const planEnd = dr.end ?? "";
+  const dataStart = ddr.start ?? "";
+  const dataEnd = ddr.end ?? "";
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, ".");
+  const kpi = d.auto_kpi ?? {};
+  const plan = d.plan ?? {};
+  const notes = d.notes ?? {};
+  const tasks: string[] = Array.isArray(d.tasks) ? d.tasks : [];
+  const events: Array<{ category?: string; label?: string; count: number; wow_change?: number | null }> = Array.isArray(d.events) ? d.events : [];
+  const adPlacements: Array<{ label?: string; clicks: number; wow_change?: number | null; impressions?: number; ctr?: number; revenue?: number }> = Array.isArray(d.ad_placements) ? d.ad_placements : [];
+
+  // ① 목표
+  const goals: Array<{ goal?: string; target?: string | number; actual?: string | number; rate?: number | string; status?: string }> = Array.isArray(plan.goals) ? plan.goals : [];
+  const goalRows = goals.length > 0
+    ? goals.map((g) => {
+        const emoji = g.status ? statusEmoji(g.rate) : statusEmoji(g.rate);
+        return `| ${g.goal ?? ""} | ${g.target ?? ""} | ${g.actual ?? ""} | ${g.rate ?? 0}% | ${emoji} |`;
+      }).join("\n")
+    : "| (목표 미입력) | — | — | — | — |";
+
+  // ③ 이벤트 — 카테고리별 그룹
+  const catMap = new Map<string, typeof events>();
+  for (const e of events) {
+    const cat = e.category ?? "기타";
+    if (!catMap.has(cat)) catMap.set(cat, []);
+    catMap.get(cat)!.push(e);
+  }
+  let eventsSection = "";
+  for (const [cat, rows] of catMap) {
+    eventsSection += `\n### ${cat}\n| 이벤트 | 실적 | WoW |\n|--------|------|-----|\n`;
+    eventsSection += rows.map((r) => `| ${r.label ?? r.category ?? ""} | ${fmtNum(r.count)} | ${fmtPct(r.wow_change)} |`).join("\n");
+    eventsSection += "\n";
+  }
+
+  // ④ 광고 지표
+  const totalRevenue = adPlacements.reduce((s, p) => s + (p.revenue ?? 0), 0);
+  const adRows = adPlacements.map((p) => {
+    const rev = p.revenue != null ? fmtNum(p.revenue) : "—";
+    const ctr = p.ctr != null ? (p.ctr * 100).toFixed(2) + "%" : "—";
+    return `| ${p.label ?? ""} | ${fmtNum(p.clicks)} | ${fmtPct(p.wow_change)} | ${fmtNum(p.impressions ?? 0)} | ${ctr} | ${rev} |`;
+  });
+  adRows.push(`| **합계** | — | — | — | — | **${fmtNum(totalRevenue)}** |`);
+
+  // ⑤ 노트
+  const noteKpi = notes.kpi_summary ?? "(미입력)";
+  const noteProject = notes.project_progress ?? "(미입력)";
+  const noteNext = notes.next_week_strategy ?? "(미입력)";
+
+  // ⑥ 태스크
+  const taskList = tasks.length > 0
+    ? tasks.map((t: string) => `- [ ] ${t}`).join("\n")
+    : "- (할일 없음)";
+
+  // ⑦ 핵심 액션
+  const actions: Array<{ channel?: string; action?: string; target?: string; deadline?: string }> = Array.isArray(plan.actions) ? plan.actions : [];
+  const northStar: string = plan.north_star ?? "(미입력)";
+  const actionRows = actions.length > 0
+    ? actions.map((a, i) => `| ${i + 1} | ${a.channel ?? "—"} | ${a.action ?? "—"} | ${a.target ?? "—"} | ${a.deadline ?? "—"} |`).join("\n")
+    : "| 1 | — | — | — | — |";
+  const actionDetail = actions.length > 0
+    ? actions.map((a) => `- [${a.channel ?? ""}] ${a.action ?? ""}`).join("\n")
+    : "(액션 없음)";
+
+  // 슬랙 공유용
+  const slackGoals = goals.map((g) => `• ${g.goal ?? ""} — ${g.actual ?? ""} / 목표 ${g.target ?? ""} (${statusEmoji(g.rate)})`).join("\n");
+  const slackTasks = tasks.map((t: string) => `⬜ ${t}`).join("\n");
+
+  return `# 📋 ${weekLabel} | Weekly Plan | 플랫폼팀
+
+> 작성일: ${today}  |  작성자: 조규준
+> 📌 플래너 주차: **${weekLabel}** (${planStart} ~ ${planEnd})
+> 📌 KPI 기준: **${dataLabel} 실적** (${dataStart} ~ ${dataEnd} · 전주 기준)
+
+---
+
+## ① ${weekLabel} 목표 & 달성률
+
+| 핵심 목표 | 목표치 | 실적 | 달성률 | 상태 |
+|--------|------|-----|------|-----|
+${goalRows}
+
+> 상태 기준: 🟢 달성 / 🟡 진행중 / 🔴 미달성
+
+---
+
+## ② KPI 현황 (${dataLabel} 실적)
+
+| 구분 | 전전주 | 전주 실적 | WoW |
+|-----|------|---------|-----|
+| MAU (주간 활성) | ${fmtNum(kpi.mau_prev)} | ${fmtNum(kpi.mau)} | ${fmtPct(kpi.mau_wow)} |
+| 신규 가입자 | ${fmtNum(kpi.new_users_prev)} | ${fmtNum(kpi.new_users)} | ${fmtPct(kpi.new_users_wow)} |
+| 세션 수 | ${fmtNum(kpi.sessions_prev)} | ${fmtNum(kpi.sessions)} | ${fmtPct(kpi.sessions_wow)} |
+
+---
+
+## ③ 기능별 지표 (${dataLabel} 실적 · GA4 자동 · WoW)
+${eventsSection}
+---
+
+## ④ 광고별 지표 (${dataLabel} 실적 · GA4 자동 + 매출 수동)
+
+| 위치 | 클릭수 | WoW | 노출수 | CTR | 매출(원) |
+|-----|-------|-----|------|-----|---------|
+${adRows.join("\n")}
+
+---
+
+## ⑤ 주간 플래닝 노트
+
+### 🎯 Weekly KPI Dashboard
+${noteKpi}
+
+### 🔧 Project Progress
+${noteProject.split("\n").map((l: string) => l.startsWith("-") ? l : `- ${l}`).join("\n")}
+
+### 📅 Next Week's Strategy
+${noteNext}
+
+---
+
+## ⑥ ${weekLabel} 할일
+
+${taskList}
+
+---
+
+## ⑦ ${weekLabel} 핵심 액션
+
+### 🎯 North Star
+> **${northStar}**
+
+| # | 채널 | 액션 | 목표 | 마감 |
+|---|-----|-----|-----|-----|
+${actionRows}
+
+### 구체적 할일
+${actionDetail}
+
+---
+
+# 📣 슬랙 공유용 (복붙)
+
+\`\`\`
+📋 *${weekLabel} Weekly Plan* | 플랫폼팀
+
+*① 이번 주 목표*
+${slackGoals || "(목표 없음)"}
+
+*② KPI (${dataLabel} 실적)*
+MAU: ${fmtNum(kpi.mau_prev)} → ${fmtNum(kpi.mau)} (WoW ${fmtPct(kpi.mau_wow)})
+신규: ${fmtNum(kpi.new_users)} (WoW ${fmtPct(kpi.new_users_wow)})
+
+*③ 할일 (${weekLabel})*
+${slackTasks || "(할일 없음)"}
+
+*④ 핵심 액션*
+${actions.map((a) => `• [${a.channel ?? ""}] ${a.action ?? ""}`).join("\n") || ""}
+
+🎯 North Star: ${northStar}
+\`\`\`
+`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildMonthlyMd(d: any): string {
+  const monthLabel = d.month_label ?? d.month ?? "";
+  const dataLabel = d.data_month_label ?? d.data_month ?? "";
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, ".");
+  const kpi = d.auto_kpi ?? {};
+  const plan = d.plan ?? {};
+  const events: Array<{ category?: string; label?: string; count: number; mom_change?: number | null }> = Array.isArray(d.events) ? d.events : [];
+  const adPlacements: Array<{ label?: string; clicks: number; mom_change?: number | null; impressions?: number; ctr?: number; revenue?: number }> = Array.isArray(d.ad_placements) ? d.ad_placements : [];
+
+  // 이벤트 카테고리별
+  const catMap = new Map<string, typeof events>();
+  for (const e of events) {
+    const cat = e.category ?? "기타";
+    if (!catMap.has(cat)) catMap.set(cat, []);
+    catMap.get(cat)!.push(e);
+  }
+  let eventsSection = "";
+  for (const [cat, rows] of catMap) {
+    eventsSection += `\n### ${cat}\n| 이벤트 | 실적 | MoM |\n|--------|------|-----|\n`;
+    eventsSection += rows.map((r) => `| ${r.label ?? ""} | ${fmtNum(r.count)} | ${fmtPct(r.mom_change)} |`).join("\n");
+    eventsSection += "\n";
+  }
+
+  // 광고 지표
+  const totalRevenue = adPlacements.reduce((s, p) => s + (p.revenue ?? 0), 0);
+  const adRows = adPlacements.map((p) => {
+    const rev = p.revenue != null ? fmtNum(p.revenue) : "—";
+    const ctr = p.ctr != null ? (p.ctr * 100).toFixed(2) + "%" : "—";
+    return `| ${p.label ?? ""} | ${fmtNum(p.clicks)} | ${fmtPct(p.mom_change)} | ${fmtNum(p.impressions ?? 0)} | ${ctr} | ${rev} |`;
+  });
+  adRows.push(`| **합계** | — | — | — | — | **${fmtNum(totalRevenue)}** |`);
+
+  // 플랜 필드
+  const goals = Array.isArray(plan.goals) ? plan.goals : [];
+  const goalRows = goals.length > 0
+    ? goals.map((g: { goal?: string; target?: string | number; actual?: string | number; rate?: number | string }) =>
+        `| ${g.goal ?? ""} | ${g.target ?? ""} | ${g.actual ?? ""} | ${g.rate ?? "—"}% | ${statusEmoji(g.rate)} |`
+      ).join("\n")
+    : "| (목표 미입력) | — | — | — | — |";
+
+  const retrospective: string = plan.retrospective ?? "(미입력)";
+  const nextPlan: string = plan.next_plan ?? "(미입력)";
+
+  return `# 📅 ${monthLabel} | Monthly Plan | 플랫폼팀
+
+> 작성일: ${today}  |  작성자: 조규준
+> 📌 플래너: **${monthLabel}**
+> 📌 KPI 기준: **${dataLabel} 실적** (전월 기준)
+
+---
+
+## ① ${monthLabel} 목표 & 달성률
+
+| 핵심 목표 | 목표치 | 실적 | 달성률 | 상태 |
+|--------|------|-----|------|-----|
+${goalRows}
+
+> 상태 기준: 🟢 달성 / 🟡 진행중 / 🔴 미달성
+
+---
+
+## ② KPI 현황 (${dataLabel} 실적)
+
+| 구분 | 전월 | 이번달 실적 | MoM |
+|-----|------|-----------|-----|
+| MAU | ${fmtNum(kpi.mau_prev)} | ${fmtNum(kpi.mau)} | ${fmtPct(kpi.mau_mom)} |
+| 신규 가입자 | ${fmtNum(kpi.new_users_prev)} | ${fmtNum(kpi.new_users)} | ${fmtPct(kpi.new_users_mom)} |
+| 누적 사용자 | — | ${fmtNum(kpi.cumulative_users)} | — |
+| D7 리텐션 | — | ${kpi.d7_retention_rate != null ? (kpi.d7_retention_rate * 100).toFixed(1) + "%" : "—"} | — |
+
+---
+
+## ③ 기능별 지표 (${dataLabel} 실적 · GA4 자동 · MoM)
+${eventsSection}
+---
+
+## ④ 광고별 지표 (${dataLabel} 실적 · GA4 자동 + 매출 수동)
+
+| 위치 | 클릭수 | MoM | 노출수 | CTR | 매출(원) |
+|-----|-------|-----|------|-----|---------|
+${adRows.join("\n")}
+
+---
+
+## ⑤ 월간 회고
+
+${retrospective}
+
+---
+
+## ⑥ 다음달 플랜
+
+${nextPlan}
+`;
 }
