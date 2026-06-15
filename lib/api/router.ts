@@ -694,8 +694,17 @@ function statusEmoji(rate: number | string | null | undefined): string {
   return "🔴";
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildWeeklyMd(d: any): string {
+interface WPlanGoal { goal?: string; target?: string | number; actual?: string | number; rate?: number | string; status?: string }
+interface WPlanAction { channel?: string; action?: string; target?: string; deadline?: string }
+interface WPlanNotes { kpi_summary?: string; project_progress?: string; next_week_strategy?: string }
+interface WPlanKpi { mau?: number; mau_prev?: number; mau_wow?: number; new_users?: number; new_users_prev?: number; new_users_wow?: number; sessions?: number; sessions_prev?: number; sessions_wow?: number }
+interface WPlanPlan { goals?: WPlanGoal[]; actions?: WPlanAction[]; north_star?: string }
+interface WPlanEvent { category?: string; label?: string; count: number; wow_change?: number | null }
+interface WPlanAd { label?: string; clicks: number; wow_change?: number | null; impressions?: number; ctr?: number; revenue?: number }
+interface WPlanDateRange { start?: string; end?: string }
+interface WeeklyData { week?: string; week_label?: string; data_week?: string; data_week_label?: string; date_range?: WPlanDateRange; data_date_range?: WPlanDateRange; auto_kpi?: WPlanKpi; plan?: WPlanPlan; notes?: WPlanNotes; tasks?: string[]; events?: WPlanEvent[]; ad_placements?: WPlanAd[] }
+
+function buildWeeklyMd(d: WeeklyData): string {
   const weekLabel = d.week_label ?? d.week ?? "";
   const dataLabel = d.data_week_label ?? d.data_week ?? "";
   const dr = d.date_range ?? {};
@@ -705,18 +714,18 @@ function buildWeeklyMd(d: any): string {
   const dataStart = ddr.start ?? "";
   const dataEnd = ddr.end ?? "";
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, ".");
-  const kpi = d.auto_kpi ?? {};
-  const plan = d.plan ?? {};
-  const notes = d.notes ?? {};
-  const tasks: string[] = Array.isArray(d.tasks) ? d.tasks : [];
-  const events: Array<{ category?: string; label?: string; count: number; wow_change?: number | null }> = Array.isArray(d.events) ? d.events : [];
-  const adPlacements: Array<{ label?: string; clicks: number; wow_change?: number | null; impressions?: number; ctr?: number; revenue?: number }> = Array.isArray(d.ad_placements) ? d.ad_placements : [];
+  const kpi: WPlanKpi = d.auto_kpi ?? {};
+  const plan: WPlanPlan = d.plan ?? {};
+  const notes: WPlanNotes = d.notes ?? {};
+  const tasks: string[] = d.tasks ?? [];
+  const events: WPlanEvent[] = d.events ?? [];
+  const adPlacements: WPlanAd[] = d.ad_placements ?? [];
 
   // ① 목표
-  const goals: Array<{ goal?: string; target?: string | number; actual?: string | number; rate?: number | string; status?: string }> = Array.isArray(plan.goals) ? plan.goals : [];
+  const goals: WPlanGoal[] = plan.goals ?? [];
   const goalRows = goals.length > 0
     ? goals.map((g) => {
-        const emoji = g.status ? statusEmoji(g.rate) : statusEmoji(g.rate);
+        const emoji = statusEmoji(g.rate);
         return `| ${g.goal ?? ""} | ${g.target ?? ""} | ${g.actual ?? ""} | ${g.rate ?? 0}% | ${emoji} |`;
       }).join("\n")
     : "| (목표 미입력) | — | — | — | — |";
@@ -755,7 +764,7 @@ function buildWeeklyMd(d: any): string {
     : "- (할일 없음)";
 
   // ⑦ 핵심 액션
-  const actions: Array<{ channel?: string; action?: string; target?: string; deadline?: string }> = Array.isArray(plan.actions) ? plan.actions : [];
+  const actions: WPlanAction[] = plan.actions ?? [];
   const northStar: string = plan.north_star ?? "(미입력)";
   const actionRows = actions.length > 0
     ? actions.map((a, i) => `| ${i + 1} | ${a.channel ?? "—"} | ${a.action ?? "—"} | ${a.target ?? "—"} | ${a.deadline ?? "—"} |`).join("\n")
@@ -864,15 +873,21 @@ ${actions.map((a) => `• [${a.channel ?? ""}] ${a.action ?? ""}`).join("\n") ||
 `;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildMonthlyMd(d: any): string {
+interface MGoal { goal?: string; target?: string | number; actual?: string | number; rate?: number | string }
+interface MKpi { mau?: number; mau_prev?: number; mau_mom?: number; new_users?: number; new_users_prev?: number; new_users_mom?: number; cumulative_users?: number; d7_retention_rate?: number }
+interface MPlan { goals?: MGoal[]; retrospective?: string; next_plan?: string }
+interface MEvent { category?: string; label?: string; count: number; mom_change?: number | null }
+interface MAd { label?: string; clicks: number; mom_change?: number | null; impressions?: number; ctr?: number; revenue?: number }
+interface MonthlyData { month?: string; month_label?: string; data_month?: string; data_month_label?: string; auto_kpi?: MKpi; plan?: MPlan; events?: MEvent[]; ad_placements?: MAd[] }
+
+function buildMonthlyMd(d: MonthlyData): string {
   const monthLabel = d.month_label ?? d.month ?? "";
   const dataLabel = d.data_month_label ?? d.data_month ?? "";
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, ".");
-  const kpi = d.auto_kpi ?? {};
-  const plan = d.plan ?? {};
-  const events: Array<{ category?: string; label?: string; count: number; mom_change?: number | null }> = Array.isArray(d.events) ? d.events : [];
-  const adPlacements: Array<{ label?: string; clicks: number; mom_change?: number | null; impressions?: number; ctr?: number; revenue?: number }> = Array.isArray(d.ad_placements) ? d.ad_placements : [];
+  const kpi: MKpi = d.auto_kpi ?? {};
+  const plan: MPlan = d.plan ?? {};
+  const events: MEvent[] = d.events ?? [];
+  const adPlacements: MAd[] = d.ad_placements ?? [];
 
   // 이벤트 카테고리별
   const catMap = new Map<string, typeof events>();
@@ -898,9 +913,9 @@ function buildMonthlyMd(d: any): string {
   adRows.push(`| **합계** | — | — | — | — | **${fmtNum(totalRevenue)}** |`);
 
   // 플랜 필드
-  const goals = Array.isArray(plan.goals) ? plan.goals : [];
+  const goals: MGoal[] = plan.goals ?? [];
   const goalRows = goals.length > 0
-    ? goals.map((g: { goal?: string; target?: string | number; actual?: string | number; rate?: number | string }) =>
+    ? goals.map((g) =>
         `| ${g.goal ?? ""} | ${g.target ?? ""} | ${g.actual ?? ""} | ${g.rate ?? "—"}% | ${statusEmoji(g.rate)} |`
       ).join("\n")
     : "| (목표 미입력) | — | — | — | — |";
