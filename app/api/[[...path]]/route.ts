@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
+export const dynamic = "force-dynamic";
+
 async function dispatch(method: string, req: Request, ctx: Ctx) {
   try {
     const { handleApi } = await import("@/lib/api/router");
     const { path: segments } = await ctx.params;
     const pathname = "/api" + (segments?.length ? "/" + segments.join("/") : "");
-    return await handleApi(method, pathname, req);
+    const res = await handleApi(method, pathname, req);
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    return res;
   } catch (e) {
     console.error("[api]", e);
     return NextResponse.json({ detail: String(e) }, { status: 500 });

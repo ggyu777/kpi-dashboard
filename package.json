@@ -6,11 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "ga4:auth": ".venv/bin/python scripts/oauth-ga4-token.py",
+    "ga4:auth:vercel": ".venv/bin/python scripts/oauth-ga4-token.py --push-vercel",
+    "ga4:test": "tsx scripts/test-ga4.ts",
+    "ga4:push-vercel": "tsx scripts/push-token-to-vercel.ts"
   },
   "dependencies": {
     "@google-analytics/data": "^4.12.0",
-    "@vercel/blob": "^0.27.0",
+    "@vercel/blob": "^2.4.0",
     "google-auth-library": "^9.15.1",
     "next": "^15.3.3",
     "postgres": "^3.4.5",

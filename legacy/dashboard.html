@@ -86,6 +86,22 @@
   .placement-row-clickable.expanded { background: rgba(99,102,241,.1); }
   .placement-daily-row td { padding: 0 !important; border-bottom: 1px solid var(--border) !important; }
   .placement-daily-inner { padding: 12px 16px 16px; background: rgba(15,23,42,.4); }
+
+  /* 배너 A/B 비교 */
+  .banner-ab-section { margin-bottom: 28px; }
+  .banner-ab-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .banner-ab-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .banner-ab-title { font-size: 14px; font-weight: 700; }
+  .banner-ab-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .banner-ab-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .banner-ab-compare { grid-template-columns: 1fr; } }
+  .banner-ab-variant { background: rgba(15,23,42,.45); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .banner-ab-variant.leading { border-color: rgba(16,185,129,.45); background: rgba(16,185,129,.08); }
+  .banner-ab-variant-label { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .banner-ab-stat { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .banner-ab-stat strong { color: var(--text); font-weight: 600; }
+  .banner-ab-filter { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .banner-ab-hint { font-size: 12px; color: var(--muted); background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.25); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
   .kpi-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
   .kpi-name { font-size: 12px; color: var(--muted); }
   .ga4-badge { background: rgba(99,102,241,.2); color: #a5b4fc; border-radius: 20px; padding: 1px 6px; font-size: 10px; font-weight: 500; }
@@ -595,6 +611,118 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- 배너 A/B 비교 (광고별 A안 vs B안) -->
+  <div class="banner-ab-section" x-show="viewMode==='weekly'">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">🧪 배너 A/B 비교 <span style="font-size:10px;font-weight:400;color:var(--dim);margin-left:4px">(광고별 A안·B안 노출·클릭·CTR)</span></div>
+      <div class="banner-ab-filter">
+        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" x-model="bannerAbAbOnly" @change="loadBannerAb()" style="accent-color:var(--indigo)">
+          GrowthBook A/B만
+        </label>
+      </div>
+    </div>
+    <div class="spinner" x-show="bannerAbLoading"></div>
+    <div class="banner-ab-hint" x-show="!bannerAbLoading && bannerAbData && !bannerAbData.has_data" x-text="bannerAbData?.setup_hint || '이번 주 A/B 배너 데이터가 없습니다.'"></div>
+    <div class="daily-empty" x-show="!bannerAbLoading && bannerAbData?.has_data && !(bannerAbData?.ads?.length)" style="padding:16px 0">표시할 A/B 광고가 없습니다. 필터를 해제하거나 다른 주차를 선택해 보세요.</div>
+    <template x-for="ad in (bannerAbData?.ads ?? [])" :key="ad.ad_id + '-' + ad.placement + '-' + ad.banner_copy_mode">
+      <div class="banner-ab-card">
+        <div class="banner-ab-header">
+          <div>
+            <div class="banner-ab-title" x-text="ad.ad_name || ('광고 #' + ad.ad_id)"></div>
+            <div class="banner-ab-meta">
+              <span x-text="ad.placement_label"></span>
+              <span> · </span>
+              <span x-text="ad.banner_copy_mode_label"></span>
+              <span> · ID </span>
+              <span x-text="ad.ad_id"></span>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:right">
+            합계 노출 <strong style="color:var(--text)" x-text="ad.total_impressions.toLocaleString()"></strong>
+            · 클릭 <strong style="color:var(--text)" x-text="ad.total_clicks.toLocaleString()"></strong>
+          </div>
+        </div>
+        <div class="banner-ab-compare">
+          <template x-for="v in ad.variants" :key="v.copy_variant">
+            <div class="banner-ab-variant" :class="bannerAbVariantLeading(ad, v) ? 'leading' : ''">
+              <div class="banner-ab-variant-label">
+                <span x-text="v.variant_label"></span>
+                <span x-show="bannerAbVariantLeading(ad, v)" style="font-size:10px;color:#6ee7b7;font-weight:600">↑ CTR</span>
+              </div>
+              <div class="banner-ab-stat">노출 <strong x-text="v.impressions.toLocaleString()"></strong>
+                <template x-if="v.impressions_wow !== null && v.impressions_wow !== undefined">
+                  <span :class="v.impressions_wow > 0 ? 'wow wow-up' : v.impressions_wow < 0 ? 'wow wow-down' : 'wow wow-flat'" style="margin-left:4px" x-text="(v.impressions_wow > 0 ? '▲' : v.impressions_wow < 0 ? '▼' : '─') + Math.abs(v.impressions_wow).toFixed(1) + '%'"></span>
+                </template>
+              </div>
+              <div class="banner-ab-stat">클릭 <strong x-text="v.clicks.toLocaleString()"></strong>
+                <template x-if="v.clicks_wow !== null && v.clicks_wow !== undefined">
+                  <span :class="v.clicks_wow > 0 ? 'wow wow-up' : v.clicks_wow < 0 ? 'wow wow-down' : 'wow wow-flat'" style="margin-left:4px" x-text="(v.clicks_wow > 0 ? '▲' : v.clicks_wow < 0 ? '▼' : '─') + Math.abs(v.clicks_wow).toFixed(1) + '%'"></span>
+                </template>
+              </div>
+              <div class="banner-ab-stat">CTR <strong x-text="v.ctr !== null && v.ctr !== undefined ? v.ctr.toFixed(2) + '%' : '—'"></strong></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- 배너 UTM 유입 비교 (utm_content별 A/B) -->
+  <div class="banner-ab-section" x-show="viewMode==='weekly'">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">🔗 UTM 유입 비교 <span style="font-size:10px;font-weight:400;color:var(--dim);margin-left:4px">(배너 클릭 후 랜딩 · utm_content별)</span></div>
+      <div class="banner-ab-filter">
+        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" x-model="bannerUtmPairsOnly" @change="loadBannerUtm()" style="accent-color:var(--indigo)">
+          2개 이상 content만 (A/B)
+        </label>
+      </div>
+    </div>
+    <p class="banner-ab-hint" style="margin-bottom:12px;background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.25)" x-show="bannerUtmData?.note" x-text="bannerUtmData?.note"></p>
+    <div class="spinner" x-show="bannerUtmLoading"></div>
+    <div class="banner-ab-hint" x-show="!bannerUtmLoading && bannerUtmData && !bannerUtmData.has_data" x-text="bannerUtmData?.setup_hint || 'UTM 유입 데이터가 없습니다.'"></div>
+    <div class="daily-empty" x-show="!bannerUtmLoading && bannerUtmData?.has_data && !(bannerUtmData?.campaigns?.length)" style="padding:16px 0">표시할 UTM 캠페인이 없습니다. 필터를 해제하거나 다른 주차를 선택해 보세요.</div>
+    <template x-for="c in (bannerUtmData?.campaigns ?? [])" :key="c.utm_campaign">
+      <div class="banner-ab-card">
+        <div class="banner-ab-header">
+          <div>
+            <div class="banner-ab-title" x-text="c.utm_campaign"></div>
+            <div class="banner-ab-meta">
+              utm_source=<span x-text="c.utm_source"></span>
+              <span> · </span>
+              <span x-text="c.variants.length + '개 variant'"></span>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:right">
+            합계 세션 <strong style="color:var(--text)" x-text="c.total_sessions.toLocaleString()"></strong>
+            · 사용자 <strong style="color:var(--text)" x-text="c.total_users.toLocaleString()"></strong>
+          </div>
+        </div>
+        <div class="banner-ab-compare" :style="c.variants.length > 2 ? 'grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))' : ''">
+          <template x-for="v in c.variants" :key="v.utm_content">
+            <div class="banner-ab-variant" :class="bannerUtmVariantLeading(c, v) ? 'leading' : ''">
+              <div class="banner-ab-variant-label">
+                <span x-text="v.utm_content"></span>
+                <span x-show="bannerUtmVariantLeading(c, v)" style="font-size:10px;color:#6ee7b7;font-weight:600">↑ 세션</span>
+              </div>
+              <div class="banner-ab-stat">세션 <strong x-text="v.sessions.toLocaleString()"></strong>
+                <template x-if="v.sessions_wow !== null && v.sessions_wow !== undefined">
+                  <span :class="v.sessions_wow > 0 ? 'wow wow-up' : v.sessions_wow < 0 ? 'wow wow-down' : 'wow wow-flat'" style="margin-left:4px" x-text="(v.sessions_wow > 0 ? '▲' : v.sessions_wow < 0 ? '▼' : '─') + Math.abs(v.sessions_wow).toFixed(1) + '%'"></span>
+                </template>
+              </div>
+              <div class="banner-ab-stat">사용자 <strong x-text="v.users.toLocaleString()"></strong>
+                <template x-if="v.users_wow !== null && v.users_wow !== undefined">
+                  <span :class="v.users_wow > 0 ? 'wow wow-up' : v.users_wow < 0 ? 'wow wow-down' : 'wow wow-flat'" style="margin-left:4px" x-text="(v.users_wow > 0 ? '▲' : v.users_wow < 0 ? '▼' : '─') + Math.abs(v.users_wow).toFixed(1) + '%'"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
   </div>
 
   <!-- KPI 카드 그리드 -->
@@ -1575,6 +1703,7 @@ function kpiApp() {
     ],
     notes: { kpi_summary: '', project_progress: '', next_week_strategy: '' },
     noteSaved: { kpi_summary: false, project_progress: false, next_week_strategy: false },
+    _noteEditorSuppressSave: 0,
     weeklyTasks: [],
     weeklyTaskNew: '',
     weeklyTasksSaved: false,
@@ -1582,6 +1711,12 @@ function kpiApp() {
     monthWeekTaskInputs: {},
     monthlyFeedback: '',
     monthlyFeedbackSaved: false,
+    bannerAbLoading: false,
+    bannerAbData: null,
+    bannerAbAbOnly: true,
+    bannerUtmLoading: false,
+    bannerUtmData: null,
+    bannerUtmPairsOnly: true,
 
     placements: [
       {id:'top',          label:'상단 카테고리'},
@@ -1606,7 +1741,7 @@ function kpiApp() {
     ],
 
     async init() {
-      await Promise.all([this.loadKPI(), this.loadPlacements(), this.loadNotes(), this.loadEvents(), this.loadWeeklyTasks()]);
+      await Promise.all([this.loadKPI(), this.loadPlacements(), this.loadBannerAb(), this.loadBannerUtm(), this.loadNotes(), this.loadEvents(), this.loadWeeklyTasks()]);
       await this.$nextTick();
       this.scheduleNoteEditors();
     },
@@ -1646,7 +1781,12 @@ function kpiApp() {
         if (window._noteEditors[field]) {
           const quillRoot = window._noteEditors[field].root?.parentElement;
           if (quillRoot && el.contains(quillRoot)) {
-            this._setQuillContent(window._noteEditors[field], this.notes[field]);
+            this._noteEditorSuppressSave++;
+            try {
+              this._setQuillContent(window._noteEditors[field], this.notes[field]);
+            } finally {
+              this._noteEditorSuppressSave--;
+            }
             return;
           }
           delete window._noteEditors[field];
@@ -1659,13 +1799,43 @@ function kpiApp() {
         // 초기 콘텐츠 설정
         this._setQuillContent(quill, this.notes[field]);
         // 변경 시 자동 저장 (800ms 디바운스)
-        let timer;
+        if (!window._noteSaveTimers) window._noteSaveTimers = {};
         quill.on('text-change', () => {
-          clearTimeout(timer);
-          timer = setTimeout(() => this._saveNoteFromQuill(field), 800);
+          if (this._noteEditorSuppressSave > 0) return;
+          clearTimeout(window._noteSaveTimers[field]);
+          window._noteSaveTimers[field] = setTimeout(() => this._saveNoteFromQuill(field), 800);
         });
         window._noteEditors[field] = quill;
       });
+    },
+
+    cancelPendingNoteSaves() {
+      if (!window._noteSaveTimers) return;
+      this.NOTE_FIELDS.forEach(field => {
+        clearTimeout(window._noteSaveTimers[field]);
+        delete window._noteSaveTimers[field];
+      });
+    },
+
+    syncNotesFromEditors() {
+      if (!window._noteEditors) return;
+      this.NOTE_FIELDS.forEach(field => {
+        const q = window._noteEditors[field];
+        if (q) this.notes[field] = JSON.stringify(q.getContents());
+      });
+    },
+
+    _applyNotesToEditors() {
+      if (!window._noteEditors) return;
+      this._noteEditorSuppressSave++;
+      try {
+        this.NOTE_FIELDS.forEach(field => {
+          const q = window._noteEditors[field];
+          if (q) this._setQuillContent(q, this.notes[field]);
+        });
+      } finally {
+        this._noteEditorSuppressSave--;
+      }
     },
 
     _setQuillContent(quill, raw) {
@@ -1679,9 +1849,10 @@ function kpiApp() {
     },
 
     async _saveNoteFromQuill(field) {
+      const week = this.week;
       if (!window._noteEditors?.[field]) return;
-      this.notes[field] = JSON.stringify(window._noteEditors[field].getContents());
-      await this.saveNote(field);
+      this.syncNotesFromEditors();
+      await this.saveNote(field, week);
     },
 
     KPT_EDITOR_KEYS: { keep: 'kpt_keep', problem: 'kpt_problem', 'try': 'kpt_try' },
@@ -1860,30 +2031,38 @@ function kpiApp() {
           next_week_strategy: data.next_week_strategy ?? '',
         };
         this.noteSaved = { kpi_summary: false, project_progress: false, next_week_strategy: false };
-        // 이미 에디터가 초기화된 경우 콘텐츠 업데이트
-        if (window._noteEditors) {
-          this.NOTE_FIELDS.forEach(field => {
-            const q = window._noteEditors[field];
-            if (q) this._setQuillContent(q, this.notes[field]);
-          });
-        }
+        this._applyNotesToEditors();
       } catch(e) {
         console.error('[notes] 로드 실패:', e);
       }
     },
 
-    async saveNote(field) {
+    async saveNote(field, week = this.week) {
+      if (week !== this.week) return;
       try {
-        await fetch('/api/notes', {
+        const r = await fetch('/api/notes', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ week: this.week, ...this.notes }),
+          body: JSON.stringify({ week, ...this.notes }),
         });
+        if (!r.ok) throw new Error(await r.text());
         this.noteSaved[field] = true;
         setTimeout(() => { this.noteSaved[field] = false; }, 2000);
       } catch(e) {
         console.error('[notes] 저장 실패:', e);
       }
+    },
+
+    async persistNotes() {
+      this.cancelPendingNoteSaves();
+      this.syncNotesFromEditors();
+      const week = this.week;
+      const r = await fetch('/api/notes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week, ...this.notes }),
+      });
+      if (!r.ok) throw new Error(await r.text());
     },
 
     _newTaskId() {
@@ -1917,11 +2096,12 @@ function kpiApp() {
 
     async persistWeeklyTasks(week, tasks) {
       try {
-        await fetch('/api/weekly-tasks', {
+        const r = await fetch('/api/weekly-tasks', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ week, tasks }),
         });
+        if (!r.ok) throw new Error(await r.text());
         if (week === this.week) {
           this.weeklyTasksSaved = true;
           setTimeout(() => { this.weeklyTasksSaved = false; }, 2000);
@@ -1988,11 +2168,11 @@ function kpiApp() {
     },
 
     goToWeek(weekKey) {
+      this.cancelPendingNoteSaves();
       this.viewMode = 'weekly-planner';
       this.week = weekKey;
       this.loadKPI();
       this.loadPlacements();
-      this.loadNotes();
       this.loadEvents();
       this.loadWeeklyTasks();
       this.loadWeeklyPlanner();
@@ -2046,11 +2226,12 @@ function kpiApp() {
       if (!window._monthlyFeedbackEditor) return;
       this.monthlyFeedback = JSON.stringify(window._monthlyFeedbackEditor.getContents());
       try {
-        await fetch('/api/monthly-feedback', {
+        const r = await fetch('/api/monthly-feedback', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ month: this.month, feedback: this.monthlyFeedback }),
         });
+        if (!r.ok) throw new Error(await r.text());
         this.monthlyFeedbackSaved = true;
         setTimeout(() => { this.monthlyFeedbackSaved = false; }, 2000);
       } catch(e) {
@@ -2120,6 +2301,54 @@ function kpiApp() {
       return Math.round(clicks / max * 100);
     },
 
+    async loadBannerAb() {
+      this.bannerAbLoading = true;
+      try {
+        const abOnly = this.bannerAbAbOnly ? '1' : '0';
+        const r = await fetch(`/api/kpi/banner-ab?week=${this.week}&ab_only=${abOnly}`);
+        if (!r.ok) throw new Error();
+        this.bannerAbData = await r.json();
+      } catch (e) {
+        console.error('[banner-ab] 로드 실패:', e);
+        this.bannerAbData = { has_data: false, ads: [], setup_hint: '배너 A/B 데이터를 불러오지 못했습니다.' };
+      } finally {
+        this.bannerAbLoading = false;
+      }
+    },
+
+    bannerAbVariantLeading(ad, variant) {
+      const variants = ad?.variants ?? [];
+      if (variants.length < 2) return false;
+      const withImp = variants.filter(v => (v.impressions ?? 0) > 0 && v.ctr != null);
+      if (!withImp.length) return false;
+      const best = withImp.reduce((a, b) => (b.ctr > a.ctr ? b : a));
+      return best.copy_variant === variant.copy_variant;
+    },
+
+    async loadBannerUtm() {
+      this.bannerUtmLoading = true;
+      try {
+        const pairsOnly = this.bannerUtmPairsOnly ? '1' : '0';
+        const r = await fetch(`/api/kpi/banner-utm?week=${this.week}&pairs_only=${pairsOnly}`);
+        if (!r.ok) throw new Error();
+        this.bannerUtmData = await r.json();
+      } catch (e) {
+        console.error('[banner-utm] 로드 실패:', e);
+        this.bannerUtmData = { has_data: false, campaigns: [], setup_hint: 'UTM 유입 데이터를 불러오지 못했습니다.' };
+      } finally {
+        this.bannerUtmLoading = false;
+      }
+    },
+
+    bannerUtmVariantLeading(campaign, variant) {
+      const variants = campaign?.variants ?? [];
+      if (variants.length < 2) return false;
+      const withSessions = variants.filter(v => (v.sessions ?? 0) > 0);
+      if (!withSessions.length) return false;
+      const best = withSessions.reduce((a, b) => (b.sessions > a.sessions ? b : a));
+      return best.utm_content === variant.utm_content;
+    },
+
     isPlacementEditing(p, field) {
       return this.editingPlacement === p.id + ':' + field;
     },
@@ -2169,10 +2398,10 @@ function kpiApp() {
           this.scheduleActionTaskEditors();
         }
       } else if (mode === 'weekly-planner') {
-        this.loadNotes();
         this.loadWeeklyTasks();
         if (!this.weeklyPlannerData) this.loadWeeklyPlanner();
         else {
+          this.loadNotes();
           this.scheduleNoteEditors();
           this.scheduleWeeklyActionTaskEditors();
         }
@@ -2238,10 +2467,10 @@ function kpiApp() {
       if (this.viewMode === 'weekly') {
         this.closeAllDaily();
         this.dailyCache = {};
-        this.loadKPI(); this.loadPlacements(); this.loadEvents(); this.loadWeeklyTasks();
+        this.loadKPI(); this.loadPlacements(); this.loadBannerAb(); this.loadBannerUtm(); this.loadEvents(); this.loadWeeklyTasks();
       } else if (this.viewMode === 'weekly-planner') {
+        this.cancelPendingNoteSaves();
         this.weeklyPlannerData = null;
-        this.loadNotes();
         this.loadWeeklyTasks();
         this.loadWeeklyPlanner();
       } else {
@@ -2250,16 +2479,20 @@ function kpiApp() {
     },
 
     reloadWeekNav() {
+      this.cancelPendingNoteSaves();
       this.closeAllDaily();
       this.dailyCache = {};
       this.loadKPI();
       this.loadPlacements();
-      this.loadNotes();
+      this.loadBannerAb();
+      this.loadBannerUtm();
       this.loadEvents();
       this.loadWeeklyTasks();
       if (this.viewMode === 'weekly-planner') {
         this.weeklyPlannerData = null;
         this.loadWeeklyPlanner();
+      } else {
+        this.loadNotes();
       }
     },
 
@@ -2886,6 +3119,13 @@ function kpiApp() {
         if (!r.ok) throw new Error();
         this.weeklyPlannerData = await r.json();
         const p = this.weeklyPlannerData.plan;
+        const n = this.weeklyPlannerData.notes ?? {};
+        this.notes = {
+          kpi_summary:        n.kpi_summary        ?? '',
+          project_progress:   n.project_progress   ?? '',
+          next_week_strategy: n.next_week_strategy ?? '',
+        };
+        this.noteSaved = { kpi_summary: false, project_progress: false, next_week_strategy: false };
         this.weeklyPlannerForm = {
           author:      p.author      ?? '',
           north_star:  p.north_star  ?? '',
@@ -2910,15 +3150,18 @@ function kpiApp() {
       this.syncWeeklyActionTasksFromEditors();
       this.weeklyPlannerSaving = true;
       try {
-        await fetch('/api/weekly-plan', {
+        await this.persistNotes();
+        const r = await fetch('/api/weekly-plan', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ week: this.week, ...this.weeklyPlannerForm }),
         });
+        if (!r.ok) throw new Error(await r.text());
         this.weeklyPlannerSavedToast = true;
         setTimeout(() => { this.weeklyPlannerSavedToast = false; }, 2000);
       } catch(e) {
         console.error('[weekly-planner] 저장 실패:', e);
+        alert('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
       } finally {
         this.weeklyPlannerSaving = false;
       }
@@ -2965,15 +3208,17 @@ function kpiApp() {
       this.syncActionTasksFromEditors();
       this.plannerSaving = true;
       try {
-        await fetch('/api/monthly-plan', {
+        const r = await fetch('/api/monthly-plan', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ month: this.month, ...this.plannerForm }),
         });
+        if (!r.ok) throw new Error(await r.text());
         this.plannerSavedToast = true;
         setTimeout(() => { this.plannerSavedToast = false; }, 2000);
       } catch(e) {
         console.error('[planner] 저장 실패:', e);
+        alert('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
       } finally {
         this.plannerSaving = false;
       }

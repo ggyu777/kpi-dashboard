@@ -56,6 +56,25 @@ npm run dev
 | `GA4_PROPERTY_ID` | GA4 속성 ID |
 | `GOOGLE_TOKEN_JSON` | OAuth token JSON 한 줄 (또는 `GOOGLE_CREDENTIALS_JSON`) |
 
+### GA4 OAuth 토큰 갱신 (`invalid_grant`)
+
+```bash
+# 1) 브라우저 로그인 → token.json 발급
+npm run ga4:auth
+
+# 2) 로컬 연결 확인
+npm run ga4:test
+
+# 3) Vercel Production 반영 + 재배포
+npm run ga4:push-vercel
+# 또는 한 번에: npm run ga4:auth:vercel
+```
+
+`client_secret.json`(Google Cloud OAuth Desktop client)이 프로젝트 루트에 있어야 합니다.  
+GA4 Admin → 속성 액세스 관리에 로그인한 계정이 **뷰어 이상**이어야 합니다.
+
+**재발 방지:** 서비스 계정 키를 `GOOGLE_CREDENTIALS_JSON`으로 넣으면 OAuth 갱신이 필요 없습니다.
+
 3. Deploy — Root는 repo 루트, Framework: Next.js 자동 감지
 
 ## API

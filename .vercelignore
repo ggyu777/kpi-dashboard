@@ -4,4 +4,3 @@ token.json
 client_secret*.json
 .venv
 legacy-python
-data/kpi-store.json

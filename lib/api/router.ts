@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import {
+  BANNER_COPY_MODE_LABELS,
+  BANNER_UTM_DEFAULT_SOURCE,
   CUSTOM_EVENT_DEFINITIONS,
   KPI_DEFINITIONS,
   PLACEMENTS,
@@ -18,6 +20,8 @@ import * as db from "../db";
 import {
   fetchAdEventsByName,
   fetchAdEventsMonthly,
+  fetchBannerAbReport,
+  fetchBannerUtmReport,
   fetchAdPlacementClicks,
   fetchAdPlacementClicksMonthly,
   fetchAdPlacementImpressions,
@@ -155,6 +159,53 @@ export async function handleApi(method: string, pathname: string, req: Request) 
     const body = await req.json();
     await db.saveManualData(body.week, body.data);
     return NextResponse.json({ ok: true, saved: Object.keys(body.data ?? {}).length });
+  }
+
+  if (pathname === "/api/kpi/banner-ab" && method === "GET") {
+    const week = q.get("week") ?? getIsoWeekKey();
+    const abOnly = q.get("ab_only") !== "0";
+    const report = await fetchBannerAbReport(week);
+    let ads = report.ads;
+    if (abOnly) {
+      ads = ads.filter((a) => a.banner_copy_mode === "ab_test" || a.variants.length >= 2);
+    }
+    return NextResponse.json({
+      week,
+      week_label: getWeekLabel(week),
+      ab_only: abOnly,
+      has_data: report.has_data,
+      setup_hint: report.has_data
+        ? null
+        : "GA4 Admin에서 ad_id, copy_variant, banner_copy_mode, ad_name 이벤트 파라미터를 커스텀 dimension(이벤트 스코프)으로 등록해 주세요.",
+      copy_mode_labels: BANNER_COPY_MODE_LABELS,
+      ads: ads.map((a) => ({
+        ...a,
+        banner_copy_mode_label: BANNER_COPY_MODE_LABELS[a.banner_copy_mode] ?? (a.banner_copy_mode || "—"),
+      })),
+    });
+  }
+
+  if (pathname === "/api/kpi/banner-utm" && method === "GET") {
+    const week = q.get("week") ?? getIsoWeekKey();
+    const utmSource = q.get("utm_source")?.trim() || BANNER_UTM_DEFAULT_SOURCE;
+    const pairsOnly = q.get("pairs_only") !== "0";
+    const report = await fetchBannerUtmReport(week, utmSource);
+    let campaigns = report.campaigns;
+    if (pairsOnly) {
+      campaigns = campaigns.filter((c) => c.variants.length >= 2);
+    }
+    return NextResponse.json({
+      week,
+      week_label: getWeekLabel(week),
+      utm_source: utmSource,
+      pairs_only: pairsOnly,
+      has_data: report.has_data,
+      note: report.note,
+      setup_hint: report.has_data
+        ? null
+        : `utm_source=${utmSource} 로 유입된 세션이 없습니다. 배너 링크 UTM 또는 GA4 연결(GOOGLE_TOKEN_JSON)을 확인해 주세요.`,
+      campaigns,
+    });
   }
 
   if (pathname === "/api/kpi/ad-placements" && method === "GET") {

@@ -22,6 +22,31 @@ export const IMPRESSION_EVENT_MAP: Record<string, string> = {
   popup: "view_home_popup",
 };
 
+/** 홈 배너 A/B — GA4 이벤트에 ad_id + copy_variant 가 포함된 위치만 */
+export const BANNER_AB_SOURCES = [
+  {
+    placement: "top",
+    label: "상단 카테고리",
+    view_event: "view_home_category_banner",
+    click_event: "click_home_category_banner",
+  },
+  {
+    placement: "center",
+    label: "스타일 배너",
+    view_event: "view_home_styled_banner",
+    click_event: "click_home_ad_banner",
+  },
+] as const;
+
+export const BANNER_COPY_MODE_LABELS: Record<string, string> = {
+  ab_test: "GrowthBook A/B",
+  force_a: "A안 고정",
+  force_b: "B안 고정",
+};
+
+/** 배너 UTM 유입 비교 기본 utm_source */
+export const BANNER_UTM_DEFAULT_SOURCE = "banner";
+
 export const KPI_GA4_METRIC: Record<string, string> = {
   mau: "activeUsers",
   new_users: "newUsers",
