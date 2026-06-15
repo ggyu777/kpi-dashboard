@@ -2040,7 +2040,7 @@ function kpiApp() {
     async saveNote(field, week = this.week) {
       if (week !== this.week) return;
       try {
-        const r = await fetch('/api/notes', {
+        const r = await fetch('/api/weekly-plan', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ week, ...this.notes }),
@@ -2053,16 +2053,8 @@ function kpiApp() {
       }
     },
 
-    async persistNotes() {
-      this.cancelPendingNoteSaves();
-      this.syncNotesFromEditors();
-      const week = this.week;
-      const r = await fetch('/api/notes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week, ...this.notes }),
-      });
-      if (!r.ok) throw new Error(await r.text());
+    weeklyPlanPayload() {
+      return { week: this.week, ...this.weeklyPlannerForm, ...this.notes };
     },
 
     _newTaskId() {
@@ -3148,13 +3140,14 @@ function kpiApp() {
 
     async saveWeeklyPlanner() {
       this.syncWeeklyActionTasksFromEditors();
+      this.cancelPendingNoteSaves();
+      this.syncNotesFromEditors();
       this.weeklyPlannerSaving = true;
       try {
-        await this.persistNotes();
         const r = await fetch('/api/weekly-plan', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ week: this.week, ...this.weeklyPlannerForm }),
+          body: JSON.stringify(this.weeklyPlanPayload()),
         });
         if (!r.ok) throw new Error(await r.text());
         this.weeklyPlannerSavedToast = true;

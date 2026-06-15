@@ -73,6 +73,11 @@ export const saveMonthlyPlan = (month: string, data: Record<string, unknown>) =>
 export const getWeeklyPlan = (week: string) => (usingPostgres() ? pgGetWeeklyPlan(week) : jsonStore.getWeeklyPlan(week));
 export const saveWeeklyPlan = (week: string, data: Record<string, unknown>) =>
   usingPostgres() ? pgSaveWeeklyPlan(week, data) : jsonStore.saveWeeklyPlan(week, data);
+export const saveWeeklyPlanWithNotes = (
+  week: string,
+  planData: Record<string, unknown>,
+  notes?: jsonStore.WeeklyNotesPayload,
+) => (usingPostgres() ? pgSaveWeeklyPlanWithNotes(week, planData, notes) : jsonStore.saveWeeklyPlanWithNotes(week, planData, notes));
 
 async function pgGetTargets(week: string) {
   const db = getSql();
@@ -145,12 +150,11 @@ async function pgGetWeeklyNotes(week: string) {
 }
 
 async function pgSaveWeeklyNotes(week: string, kpiSummary: string, projectProgress: string, nextWeekStrategy: string) {
-  const db = getSql();
-  await db`
-    INSERT INTO weekly_notes (week, kpi_summary, project_progress, next_week_strategy)
-    VALUES (${week}, ${kpiSummary}, ${projectProgress}, ${nextWeekStrategy})
-    ON CONFLICT (week) DO UPDATE SET kpi_summary = EXCLUDED.kpi_summary, project_progress = EXCLUDED.project_progress, next_week_strategy = EXCLUDED.next_week_strategy
-  `;
+  await pgSaveWeeklyPlanWithNotes(week, {}, {
+    kpi_summary: kpiSummary,
+    project_progress: projectProgress,
+    next_week_strategy: nextWeekStrategy,
+  });
 }
 
 async function pgGetWeeklyTasks(week: string) {
@@ -213,10 +217,37 @@ async function pgGetWeeklyPlan(week: string) {
 }
 
 async function pgSaveWeeklyPlan(week: string, data: Record<string, unknown>) {
+  const cleaned = { ...data };
+  delete cleaned.week;
+  delete cleaned.kpi_summary;
+  delete cleaned.project_progress;
+  delete cleaned.next_week_strategy;
+  await pgSaveWeeklyPlanWithNotes(week, cleaned);
+}
+
+async function pgSaveWeeklyPlanWithNotes(
+  week: string,
+  planData: Record<string, unknown>,
+  notes?: jsonStore.WeeklyNotesPayload,
+) {
   const db = getSql();
-  await db`
-    INSERT INTO weekly_plans (week, author, north_star, goals, actions, ad_revenues)
-    VALUES (${week}, ${String(data.author ?? "")}, ${String(data.north_star ?? "")}, ${db.json((data.goals ?? []) as never)}, ${db.json((data.actions ?? []) as never)}, ${db.json((data.ad_revenues ?? {}) as never)})
-    ON CONFLICT (week) DO UPDATE SET author = EXCLUDED.author, north_star = EXCLUDED.north_star, goals = EXCLUDED.goals, actions = EXCLUDED.actions, ad_revenues = EXCLUDED.ad_revenues
-  `;
+  const planKeys = ["author", "north_star", "goals", "actions", "ad_revenues"] as const;
+  const touchesPlan = planKeys.some((k) => k in planData);
+
+  await db.begin(async (sql) => {
+    if (touchesPlan) {
+      await sql`
+        INSERT INTO weekly_plans (week, author, north_star, goals, actions, ad_revenues)
+        VALUES (${week}, ${String(planData.author ?? "")}, ${String(planData.north_star ?? "")}, ${sql.json((planData.goals ?? []) as never)}, ${sql.json((planData.actions ?? []) as never)}, ${sql.json((planData.ad_revenues ?? {}) as never)})
+        ON CONFLICT (week) DO UPDATE SET author = EXCLUDED.author, north_star = EXCLUDED.north_star, goals = EXCLUDED.goals, actions = EXCLUDED.actions, ad_revenues = EXCLUDED.ad_revenues
+      `;
+    }
+    if (notes) {
+      await sql`
+        INSERT INTO weekly_notes (week, kpi_summary, project_progress, next_week_strategy)
+        VALUES (${week}, ${notes.kpi_summary}, ${notes.project_progress}, ${notes.next_week_strategy})
+        ON CONFLICT (week) DO UPDATE SET kpi_summary = EXCLUDED.kpi_summary, project_progress = EXCLUDED.project_progress, next_week_strategy = EXCLUDED.next_week_strategy
+      `;
+    }
+  });
 }

@@ -59,6 +59,25 @@ async function parallel<T extends Record<string, Promise<unknown>>>(tasks: T) {
   };
 }
 
+function parseWeeklyPlanPut(body: Record<string, unknown>) {
+  const week = String(body.week ?? "");
+  const hasNotes =
+    "kpi_summary" in body || "project_progress" in body || "next_week_strategy" in body;
+  const planData = { ...body };
+  delete planData.week;
+  delete planData.kpi_summary;
+  delete planData.project_progress;
+  delete planData.next_week_strategy;
+  const notes = hasNotes
+    ? {
+        kpi_summary: String(body.kpi_summary ?? ""),
+        project_progress: String(body.project_progress ?? ""),
+        next_week_strategy: String(body.next_week_strategy ?? ""),
+      }
+    : undefined;
+  return { week, planData, notes };
+}
+
 export async function handleApi(method: string, pathname: string, req: Request) {
   await db.initDb();
   const url = new URL(req.url);
@@ -408,7 +427,11 @@ export async function handleApi(method: string, pathname: string, req: Request) 
 
   if (pathname === "/api/notes" && method === "PUT") {
     const body = await req.json();
-    await db.saveWeeklyNotes(body.week, body.kpi_summary ?? "", body.project_progress ?? "", body.next_week_strategy ?? "");
+    const { week, notes } = parseWeeklyPlanPut(body);
+    if (!notes) {
+      return NextResponse.json({ detail: "notes fields required" }, { status: 400 });
+    }
+    await db.saveWeeklyPlanWithNotes(week, {}, notes);
     return NextResponse.json({ ok: true });
   }
 
@@ -626,7 +649,8 @@ export async function handleApi(method: string, pathname: string, req: Request) 
 
   if (pathname === "/api/weekly-plan" && method === "PUT") {
     const body = await req.json();
-    await db.saveWeeklyPlan(body.week, body);
+    const { week, planData, notes } = parseWeeklyPlanPut(body);
+    await db.saveWeeklyPlanWithNotes(week, planData, notes);
     return NextResponse.json({ ok: true });
   }
 

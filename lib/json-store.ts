@@ -250,15 +250,44 @@ export async function getWeeklyNotes(week: string) {
   return note ?? { week, kpi_summary: "", project_progress: "", next_week_strategy: "" };
 }
 
-export async function saveWeeklyNotes(week: string, kpiSummary: string, projectProgress: string, nextWeekStrategy: string) {
+export type WeeklyNotesPayload = {
+  kpi_summary: string;
+  project_progress: string;
+  next_week_strategy: string;
+};
+
+const WEEKLY_PLAN_KEYS = ["author", "north_star", "goals", "actions", "ad_revenues"] as const;
+
+export async function saveWeeklyPlanWithNotes(
+  week: string,
+  planData: Record<string, unknown>,
+  notes?: WeeklyNotesPayload,
+) {
   await updateStore((store) => {
-    store.weekly_notes = store.weekly_notes.filter((n) => n.week !== week);
-    store.weekly_notes.push({
-      week,
-      kpi_summary: kpiSummary,
-      project_progress: projectProgress,
-      next_week_strategy: nextWeekStrategy,
-    });
+    const cleaned = { ...planData };
+    delete cleaned.week;
+    delete cleaned.kpi_summary;
+    delete cleaned.project_progress;
+    delete cleaned.next_week_strategy;
+
+    if (WEEKLY_PLAN_KEYS.some((k) => k in cleaned)) {
+      const existing = store.weekly_plans.find((p) => p.week === week) ?? {};
+      store.weekly_plans = store.weekly_plans.filter((p) => p.week !== week);
+      store.weekly_plans.push({ ...existing, ...cleaned, week });
+    }
+
+    if (notes) {
+      store.weekly_notes = store.weekly_notes.filter((n) => n.week !== week);
+      store.weekly_notes.push({ week, ...notes });
+    }
+  });
+}
+
+export async function saveWeeklyNotes(week: string, kpiSummary: string, projectProgress: string, nextWeekStrategy: string) {
+  await saveWeeklyPlanWithNotes(week, {}, {
+    kpi_summary: kpiSummary,
+    project_progress: projectProgress,
+    next_week_strategy: nextWeekStrategy,
   });
 }
 
@@ -320,9 +349,10 @@ export async function getWeeklyPlan(week: string) {
 }
 
 export async function saveWeeklyPlan(week: string, data: Record<string, unknown>) {
-  await updateStore((store) => {
-    const existing = store.weekly_plans.find((p) => p.week === week) ?? {};
-    store.weekly_plans = store.weekly_plans.filter((p) => p.week !== week);
-    store.weekly_plans.push({ ...existing, ...data, week });
-  });
+  const cleaned = { ...data };
+  delete cleaned.week;
+  delete cleaned.kpi_summary;
+  delete cleaned.project_progress;
+  delete cleaned.next_week_strategy;
+  await saveWeeklyPlanWithNotes(week, cleaned);
 }
