@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ga4_kpi
+      POSTGRES_PASSWORD: ga4_kpi
+      POSTGRES_DB: ga4_kpi
+    ports:
+      - "5433:5432"
+    volumes:
+      - ga4_pg_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://ga4_kpi:ga4_kpi@db:5432/ga4_kpi
+      GA4_PROPERTY_ID: ${GA4_PROPERTY_ID:-410384180}
+      GOOGLE_TOKEN_JSON: ${GOOGLE_TOKEN_JSON:-}
+      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
+    depends_on:
+      - db
+
+volumes:
+  ga4_pg_data:

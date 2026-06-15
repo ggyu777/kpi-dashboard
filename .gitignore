@@ -13,6 +13,5 @@ venv/
 .DS_Store
 node_modules/
 .next/
-legacy-python/
 .vercel
 .env*.local
