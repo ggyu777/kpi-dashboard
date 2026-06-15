@@ -54,35 +54,31 @@ function isPreconditionFailed(e: unknown): boolean {
   return e instanceof Error && (e.name === "BlobPreconditionFailedError" || e.message.includes("Precondition failed"));
 }
 
-async function readBlobEtag(): Promise<string | null> {
+async function readBlobMeta(): Promise<{ url: string; etag: string } | null> {
   try {
     const { head } = await import("@vercel/blob");
     const meta = await head(BLOB_PATHNAME);
-    return meta.etag ?? null;
+    if (!meta?.url) return null;
+    return { url: meta.url, etag: meta.etag ?? "" };
   } catch {
     return null;
   }
 }
 
+async function readBlobEtag(): Promise<string | null> {
+  const meta = await readBlobMeta();
+  return meta ? meta.etag || null : null;
+}
+
 async function readBlobText(): Promise<string | null> {
-  const { get, list } = await import("@vercel/blob");
+  // head() + direct fetch: avoids get(useCache:false) which appends ?cache=0 and causes 400
+  const meta = await readBlobMeta();
+  if (!meta) return null;
   try {
-    const result = await get(BLOB_PATHNAME, { access: "public", useCache: false });
-    if (result?.statusCode === 200 && result.stream) {
-      return await new Response(result.stream).text();
-    }
-  } catch (e) {
-    console.error("[blob] get(useCache:false) failed:", e);
-  }
-  try {
-    const { blobs } = await list({ prefix: BLOB_PATHNAME, limit: 1 });
-    const blob = blobs.find((b) => b.pathname === BLOB_PATHNAME);
-    if (!blob) return null;
-    const bust = `${blob.url}?cache=${Date.now()}`;
-    const res = await fetch(bust, { cache: "no-store" });
+    const res = await fetch(`${meta.url}?t=${Date.now()}`, { cache: "no-store" });
     return res.ok ? res.text() : null;
   } catch (e) {
-    console.error("[blob] list/fetch fallback failed:", e);
+    console.error("[blob] fetch failed:", e);
     return null;
   }
 }
@@ -107,7 +103,7 @@ async function writeRaw(content: string, etag?: string | null): Promise<void> {
       access: "public",
       addRandomSuffix: false,
       allowOverwrite: true,
-      cacheControlMaxAge: 60,
+      cacheControlMaxAge: 0, // no CDN caching — always fetch from origin
       contentType: "application/json",
       ...(etag ? { ifMatch: etag } : {}),
     });
