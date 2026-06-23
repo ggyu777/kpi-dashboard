@@ -1657,6 +1657,7 @@ function kpiApp() {
     convInputs: {},
     placementEdits: {},
     editingPlacement: null,
+    placementSaving: false,
     placementData: null,
     eventData: null,
     selectedEventCat: 'contest',
@@ -2358,6 +2359,9 @@ function kpiApp() {
 
     async commitPlacementMeta(p, field) {
       if (!this.isPlacementEditing(p, field)) return;
+      if (this.placementSaving) return;
+      this.placementSaving = true;
+      this.editingPlacement = null;
       const edits = this.placementEdits[p.id] || {};
       let value = field === 'revenue' ? edits.revenue : edits.note;
       if (field === 'revenue') {
@@ -2371,11 +2375,13 @@ function kpiApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ week: this.week, placement: p.id, field, value }),
         });
-        if (!r.ok) throw new Error();
-        this.editingPlacement = null;
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         await this.loadPlacements();
       } catch (e) {
         console.error('[placement meta] 저장 실패:', e);
+        alert('매출/비고 저장에 실패했습니다. 다시 시도해 주세요.');
+      } finally {
+        this.placementSaving = false;
       }
     },
 
