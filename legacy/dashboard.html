@@ -1324,7 +1324,7 @@
 
       <!-- W1 리텐션 주차별 추이 -->
       <div class="planner-section">
-        <div class="planner-section-title">📉 W1 리텐션 주차별 추이 <span style="font-size:10px;font-weight:400;color:var(--dim)">(GA4 동질집단 CSV 자동 · 없으면 수동 입력)</span></div>
+        <div class="planner-section-title">📉 W1 리텐션 주차별 추이 <span style="font-size:10px;font-weight:400;color:var(--dim)">(GA4 동질집단 CSV 자동 · 수동 입력 병행)</span></div>
         <template x-if="plannerData.d7_weekly && plannerData.d7_weekly.length">
           <div class="planner-chart-card">
             <div class="planner-chart-title">W1 Retention (%) — 주차 평균 <span style="color:#fcd34d" x-text="plannerData.auto_kpi.d7_retention_rate !== null && plannerData.auto_kpi.d7_retention_rate !== undefined ? plannerData.auto_kpi.d7_retention_rate.toFixed(1) + '%' : ''"></span></div>
@@ -1342,25 +1342,25 @@
             </div>
           </div>
         </template>
-        <template x-if="!plannerData.d7_weekly || !plannerData.d7_weekly.length">
-          <div>
-            <div style="font-size:12px;color:var(--dim);margin-bottom:10px">CSV 데이터 없음 — 수동으로 입력해주세요</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div>
-                <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">W1 리텐션 평균 (%)</div>
-                <input type="number" min="0" max="100" step="0.1" placeholder="예: 18.5"
-                  x-model.number="plannerForm.d7_retention_manual"
-                  class="planner-input" style="width:120px">
-              </div>
-              <div>
-                <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">메모</div>
-                <input type="text" placeholder="예: 6월 평균 18.5%"
-                  x-model="plannerForm.d7_note"
-                  class="planner-input">
-              </div>
+        <!-- 수동 입력: CSV 유무 관계없이 항상 표시 -->
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--dim);margin-bottom:10px"
+            x-text="(plannerData.d7_weekly && plannerData.d7_weekly.length) ? '📝 수동 보정 입력 (CSV 값 우선, 보완용)' : '📝 CSV 데이터 없음 — 수동으로 입력해주세요'"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">W1 리텐션 평균 (%)</div>
+              <input type="number" min="0" max="100" step="0.1" placeholder="예: 18.5"
+                x-model.number="plannerForm.d7_retention_manual"
+                class="planner-input" style="width:120px">
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">메모</div>
+              <input type="text" placeholder="예: 6월 평균 18.5%"
+                x-model="plannerForm.d7_note"
+                class="planner-input">
             </div>
           </div>
-        </template>
+        </div>
       </div>
 
       <!-- ④ 기능별 지표 -->
@@ -2547,6 +2547,11 @@ function kpiApp() {
 
     schedulePlannerCharts(retry = 0) {
       if (this.viewMode !== 'planner') return;
+      // Quill 에디터(KPT) 초기화와 레이아웃 충돌 방지 — 첫 시도는 400ms 후 시작
+      if (retry === 0) {
+        setTimeout(() => this.schedulePlannerCharts(1), 400);
+        return;
+      }
       this.$nextTick(() => {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
