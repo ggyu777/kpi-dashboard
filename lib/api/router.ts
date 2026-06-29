@@ -877,7 +877,22 @@ ${actions.map((a) => `• [${a.channel ?? ""}] ${a.action ?? ""}`).join("\n") ||
 
 interface MPlanGoal { name?: string; target?: string | number; actual?: string | number; actual_rate?: number | string; status?: string }
 interface MKpi { mau?: number; mau_prev?: number; mau_mom?: number; new_users?: number; new_users_prev?: number; new_users_mom?: number; cumulative_users?: number; d7_retention_rate?: number }
-interface MPlanNextAction { channel?: string; action?: string; goal?: string; deadline?: string }
+interface MPlanNextAction { channel?: string; action?: string; goal?: string; deadline?: string; tasks?: string }
+
+function quillToText(raw: string | undefined | null, fallback = "(미입력)"): string {
+  if (!raw) return fallback;
+  try {
+    const delta = JSON.parse(raw);
+    if (delta?.ops) {
+      const text = (delta.ops as Array<{ insert?: unknown }>)
+        .map((op) => (typeof op.insert === "string" ? op.insert : ""))
+        .join("")
+        .trim();
+      return text || fallback;
+    }
+  } catch {}
+  return raw.trim() || fallback;
+}
 interface MPlan {
   author?: string; north_star?: string; mau_target?: number;
   prev_goals?: MPlanGoal[]; goals?: MPlanGoal[];
@@ -920,18 +935,19 @@ function buildMonthlyMd(d: MonthlyData): string {
       ).join("\n")
     : "| (목표 미입력) | — | — | — | — |";
 
-  // KPT
-  const kptKeep = plan.kpt_keep || "(미입력)";
-  const kptProblem = plan.kpt_problem || "(미입력)";
-  const kptTry = plan.kpt_try || "(미입력)";
+  // KPT (Quill Delta → plain text)
+  const kptKeep = quillToText(plan.kpt_keep);
+  const kptProblem = quillToText(plan.kpt_problem);
+  const kptTry = quillToText(plan.kpt_try);
 
-  // 핵심 액션
+  // 핵심 액션 (tasks는 Quill Delta → plain text)
   const nextActions: MPlanNextAction[] = plan.next_actions ?? [];
   const actionRows = nextActions.length > 0
-    ? nextActions.map((a, i) =>
-        `| ${i + 1} | ${a.channel ?? "—"} | ${a.action ?? "—"} | ${a.goal ?? "—"} | ${a.deadline ?? "—"} |`
-      ).join("\n")
-    : "| — | — | — | — | — |";
+    ? nextActions.map((a, i) => {
+        const taskText = quillToText(a.tasks, "—").replace(/\n/g, " / ");
+        return `| ${i + 1} | ${a.channel ?? "—"} | ${a.action ?? "—"} | ${a.goal ?? "—"} | ${a.deadline ?? "—"} | ${taskText} |`;
+      }).join("\n")
+    : "| — | — | — | — | — | — |";
 
   // 이벤트 카테고리별
   const catMap = new Map<string, typeof events>();
@@ -1037,8 +1053,8 @@ ${goalRows}
 
 ## ⑦ 이번 달 핵심 액션
 
-| # | 채널 | 핵심 액션 | 목표 | 마감 |
-|---|------|---------|-----|------|
+| # | 채널 | 핵심 액션 | 목표 | 마감 | 구체적 할일 |
+|---|------|---------|-----|------|----------|
 ${actionRows}
 `;
 }
