@@ -1193,31 +1193,32 @@
           ① 지난달 계획
           <span style="font-size:10px;font-weight:400;color:var(--dim)" x-text="'· ' + (plannerData?.data_month_label || '') + ' 달성률'"></span>
         </div>
-        <template x-if="plannerData.prev_plan && plannerData.prev_plan.goals && plannerData.prev_plan.goals.length">
-          <div>
-            <div class="placement-table-wrap">
-              <table class="planner-goals-table">
-                <thead><tr>
-                  <th>핵심 목표</th><th>목표치</th><th>실적</th><th>달성률</th><th>상태</th>
-                </tr></thead>
-                <tbody>
-                  <template x-for="(goal, idx) in plannerData.prev_plan.goals" :key="idx">
-                    <tr>
-                      <td style="color:var(--text)" x-text="goal.name || '—'"></td>
-                      <td style="color:var(--muted)" x-text="goal.target || '—'"></td>
-                      <td style="color:var(--text)" x-text="goal.actual || '—'"></td>
-                      <td style="color:var(--text)" x-text="goal.actual_rate ? goal.actual_rate + '%' : '—'"></td>
-                      <td x-text="goal.status || '—'"></td>
-                    </tr>
-                  </template>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </template>
-        <template x-if="!plannerData.prev_plan || !plannerData.prev_plan.goals || !plannerData.prev_plan.goals.length">
-          <div style="font-size:12px;color:var(--dim);padding:8px 0">지난달 목표 데이터가 없습니다.</div>
-        </template>
+        <div class="placement-table-wrap">
+          <table class="planner-goals-table">
+            <thead><tr>
+              <th>핵심 목표</th><th>목표치</th><th>실적</th><th>달성률</th><th>상태</th><th></th>
+            </tr></thead>
+            <tbody>
+              <template x-for="(goal, idx) in plannerForm.prev_goals" :key="idx">
+                <tr>
+                  <td><input type="text" placeholder="목표명" x-model="goal.name"></td>
+                  <td><input type="text" placeholder="85,000" x-model="goal.target" style="width:90px"></td>
+                  <td><input type="text" placeholder="실적" x-model="goal.actual" style="width:80px"></td>
+                  <td><input type="text" placeholder="97" x-model="goal.actual_rate" style="width:60px"></td>
+                  <td>
+                    <select x-model="goal.status">
+                      <option value="🟢">🟢</option>
+                      <option value="🟡">🟡</option>
+                      <option value="🔴">🔴</option>
+                    </select>
+                  </td>
+                  <td><button class="btn-del-row" @click="plannerForm.prev_goals.splice(idx,1)">×</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <button class="btn-add-row" @click="plannerForm.prev_goals.push({name:'',target:'',actual:'',actual_rate:'',status:'🟡'})">+ 항목 추가</button>
       </div>
 
       <!-- ② 월간 회고 (KPT) -->
@@ -1760,6 +1761,7 @@ function kpiApp() {
       author: '',
       north_star: '',
       mau_target: 0,
+      prev_goals: [],
       goals: [],
       kpt_keep: '',
       kpt_problem: '',
@@ -3326,6 +3328,7 @@ function kpiApp() {
           author:               p.author               ?? '',
           north_star:           p.north_star           ?? '',
           mau_target:           p.mau_target           ?? 0,
+          prev_goals:           p.prev_goals?.length   ? p.prev_goals : (this.plannerData?.prev_plan?.goals ?? []).map(g => ({...g})),
           goals:                p.goals                ?? [],
           kpt_keep:             p.kpt_keep             ?? '',
           kpt_problem:          p.kpt_problem          ?? '',
