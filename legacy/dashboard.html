@@ -1083,7 +1083,7 @@
         </div>
         <div style="margin-top:12px">
           <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">📝 종합 특이사항</div>
-          <textarea class="planner-input" rows="2" placeholder="이번 주 광고 관련 특이사항을 입력하세요..."
+          <textarea class="planner-input" rows="2" placeholder="이번 주 특이사항을 입력하세요..."
             x-model="weeklyPlannerForm.ad_note"
             style="width:100%;resize:vertical;font-size:13px;line-height:1.5"></textarea>
         </div>
@@ -1116,15 +1116,16 @@
               <div class="task-actions-panel" x-show="task._showActions">
                 <template x-for="(act, ai) in (task.actions ?? [])" :key="ai">
                   <div class="task-action-row">
-                    <span style="color:var(--indigo);font-size:11px;flex-shrink:0">→</span>
-                    <input type="text" class="task-action-input" :value="act"
+                    <span style="color:var(--indigo);font-size:11px;flex-shrink:0;margin-top:4px">→</span>
+                    <textarea class="task-action-input" rows="2" :value="act"
                       @change="updateTaskAction(task.id, ai, $event.target.value)"
-                      @keydown.enter.prevent="$event.target.blur()"
-                      placeholder="핵심 액션 내용...">
-                    <button class="task-del" @click="removeTaskAction(task.id, ai)" title="삭제">×</button>
+                      @keydown.shift.enter="$event.target.blur()"
+                      placeholder="핵심 액션 상세 내용... (Shift+Enter로 저장)"
+                      style="resize:vertical"></textarea>
+                    <button class="task-del" @click="removeTaskAction(task.id, ai)" title="삭제" style="margin-top:2px">×</button>
                   </div>
                 </template>
-                <button class="task-action-add-btn" @click="addTaskAction(task.id)">+ 핵심 액션 추가</button>
+                <button class="task-action-add-btn" @click="addTaskAction(task.id)">+ 핵심 액션 상세</button>
               </div>
             </div>
           </template>
@@ -2727,6 +2728,7 @@ function kpiApp() {
           if (!r.ok) throw new Error();
           const payload = await r.json();
           this.dailyCache = { ...this.dailyCache, [key]: payload };
+          this.$nextTick(() => this.paintKpiDailyChart(entry));
         } catch (e) {
           console.error('[daily kpi]', e);
           this.dailyCache = { ...this.dailyCache, [key]: { error: true } };
@@ -2752,6 +2754,7 @@ function kpiApp() {
           if (!r.ok) throw new Error();
           const payload = await r.json();
           this.dailyCache = { ...this.dailyCache, [key]: payload };
+          this.$nextTick(() => this.paintEventDailyChart(evt));
         } catch (e) {
           console.error('[daily event]', e);
           this.dailyCache = { ...this.dailyCache, [key]: { error: true } };
@@ -2777,6 +2780,7 @@ function kpiApp() {
           if (!r.ok) throw new Error();
           const payload = await r.json();
           this.dailyCache = { ...this.dailyCache, [key]: payload };
+          this.$nextTick(() => this.paintPlacementDailyChart(p));
         } catch (e) {
           console.error('[daily placement]', e);
           this.dailyCache = { ...this.dailyCache, [key]: { error: true } };
