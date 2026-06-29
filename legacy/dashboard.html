@@ -1290,7 +1290,7 @@
         <div class="planner-chart-card">
           <div class="planner-chart-title">MAU <span style="color:#a5b4fc" x-text="plannerData?.data_month_label ? '(전달 ' + fmtNum(plannerData.auto_kpi.mau) + ')' : ''"></span></div>
           <div style="position:relative;height:200px">
-            <canvas id="plannerMauChart"></canvas>
+            <canvas id="plannerMauChart" x-init="$nextTick(() => initPlannerMauChart($el))"></canvas>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
             <template x-for="d in plannerData.trend" :key="d.month">
@@ -1309,7 +1309,7 @@
         <div class="planner-chart-card">
           <div class="planner-chart-title">신규 가입자 <span style="color:#6ee7b7" x-text="plannerData?.data_month_label ? '(전달 ' + fmtNum(plannerData.auto_kpi.new_users) + ')' : ''"></span></div>
           <div style="position:relative;height:200px">
-            <canvas id="plannerNewUsersChart"></canvas>
+            <canvas id="plannerNewUsersChart" x-init="$nextTick(() => initPlannerNewUsersChart($el))"></canvas>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
             <template x-for="d in plannerData.trend" :key="d.month">
@@ -1330,7 +1330,7 @@
           <div class="planner-chart-card" style="margin-bottom:12px">
             <div class="planner-chart-title">W1 Retention (%) — 주차 평균 <span style="color:#fcd34d" x-text="plannerData.auto_kpi.d7_retention_rate !== null && plannerData.auto_kpi.d7_retention_rate !== undefined ? plannerData.auto_kpi.d7_retention_rate.toFixed(1) + '%' : ''"></span></div>
             <div style="position:relative;height:180px">
-              <canvas id="plannerD7Chart"></canvas>
+              <canvas id="plannerD7Chart" x-init="$nextTick(() => initPlannerD7Chart($el))"></canvas>
             </div>
           </div>
         </template>
@@ -2543,7 +2543,6 @@ function kpiApp() {
       if (mode === 'planner') {
         if (!this.plannerData) this.loadPlanner();
         else {
-          this.schedulePlannerCharts();
           this.scheduleKptEditors();
           this.scheduleMonthlyFeedbackEditor();
           this.scheduleActionTaskEditors();
@@ -2575,40 +2574,99 @@ function kpiApp() {
         try { window._monthlyFeedbackEditor.disable(); } catch {}
         window._monthlyFeedbackEditor = null;
       }
-    },
-
-    schedulePlannerCharts(retry = 0) {
-      if (this.viewMode !== 'planner') return;
-      // Quill 에디터(KPT) 초기화와 레이아웃 충돌 방지 — 첫 시도는 900ms 후 시작
-      if (retry === 0) {
-        setTimeout(() => this.schedulePlannerCharts(1), 900);
-        return;
-      }
-      this.$nextTick(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (!this._plannerChartsReady() && retry < 30) {
-              setTimeout(() => this.schedulePlannerCharts(retry + 1), 100);
-              return;
-            }
-            this.renderPlannerCharts();
-          });
-        });
+      // Chart.js 인스턴스도 정리
+      ['plannerMauChart', 'plannerNewUsersChart', 'plannerD7Chart'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { try { window.Chart?.getChart?.(el)?.destroy(); } catch {} }
       });
     },
 
-    _plannerChartsReady() {
-      if (this.plannerLoading || !this.plannerData) return false;
-      const check = (id, needed) => {
-        if (!needed) return true;
-        const el = document.getElementById(id);
-        return !!(el && el.offsetParent !== null && el.clientWidth > 0);
+    _plannerChartOpts(color) {
+      return {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: {
+          backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1,
+          titleColor: '#94a3b8', bodyColor: '#f1f5f9',
+        }},
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 45, minRotation: 0 } },
+          y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 },
+            callback: v => v >= 1000 ? (v/1000).toFixed(1)+'K' : v } },
+        },
       };
-      const hasTrend = !!(this.plannerData.trend && this.plannerData.trend.length);
-      const hasD7 = !!(this.plannerData.d7_weekly && this.plannerData.d7_weekly.length);
-      return check('plannerMauChart', hasTrend)
-          && check('plannerNewUsersChart', hasTrend)
-          && check('plannerD7Chart', hasD7);
+    },
+
+    initPlannerMauChart(el) {
+      if (!this.plannerData?.trend?.length) return;
+      const existing = window.Chart?.getChart?.(el);
+      if (existing) existing.destroy();
+      const trend = this.plannerData.trend;
+      const labels = trend.map(d => d.month_label.replace(/\d{4}년 /, ''));
+      try {
+        new Chart(el, {
+          type: 'bar',
+          data: { labels, datasets: [{ label: 'MAU', data: trend.map(d => d.mau),
+            backgroundColor: '#6366f144', borderColor: '#6366f1', borderWidth: 2, borderRadius: 4 }] },
+          options: this._plannerChartOpts('#6366f1'),
+        });
+      } catch(e) { console.error('[planner] MAU 차트 실패:', e); }
+    },
+
+    initPlannerNewUsersChart(el) {
+      if (!this.plannerData?.trend?.length) return;
+      const existing = window.Chart?.getChart?.(el);
+      if (existing) existing.destroy();
+      const trend = this.plannerData.trend;
+      const labels = trend.map(d => d.month_label.replace(/\d{4}년 /, ''));
+      try {
+        new Chart(el, {
+          type: 'bar',
+          data: { labels, datasets: [{ label: '신규 가입자', data: trend.map(d => d.new_users),
+            backgroundColor: '#10b98144', borderColor: '#10b981', borderWidth: 2, borderRadius: 4 }] },
+          options: this._plannerChartOpts('#10b981'),
+        });
+      } catch(e) { console.error('[planner] 신규 가입자 차트 실패:', e); }
+    },
+
+    initPlannerD7Chart(el) {
+      const d7weeks = this.plannerData?.d7_weekly ?? [];
+      if (!d7weeks.length) return;
+      const existing = window.Chart?.getChart?.(el);
+      if (existing) existing.destroy();
+      const avgRate = this.plannerData?.auto_kpi?.d7_retention_rate;
+      try {
+        new Chart(el, {
+          type: 'line',
+          data: {
+            labels: d7weeks.map(w => w.label),
+            datasets: [
+              { label: 'W1 리텐션 (%)', data: d7weeks.map(w => w.rate ?? null),
+                borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 2,
+                pointBackgroundColor: '#f59e0b', pointRadius: 5, tension: 0.3, fill: true },
+              ...(avgRate != null ? [{ label: `평균 ${avgRate.toFixed(1)}%`,
+                data: d7weeks.map(() => avgRate),
+                borderColor: '#fcd34d88', borderWidth: 1.5, borderDash: [5, 4],
+                pointRadius: 0, fill: false }] : []),
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: true, labels: { color: '#94a3b8', font: { size: 10 } } },
+              tooltip: { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1,
+                titleColor: '#94a3b8', bodyColor: '#f1f5f9',
+                callbacks: { afterBody: (items) => {
+                  const w = d7weeks[items[0].dataIndex];
+                  return w ? [`총 사용자: ${w.day0.toLocaleString()}명`, `W1 활성: ${w.day7.toLocaleString()}명`] : [];
+                }},
+              },
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+              y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' }, min: 0 },
+            },
+          },
+        });
+      } catch(e) { console.error('[planner] D7 차트 실패:', e); }
     },
 
     async loadPlannerTasksAndFeedback() {
@@ -3021,137 +3079,6 @@ function kpiApp() {
       return v.toLocaleString();
     },
 
-    // ── 플래너 차트 ──
-    plannerMauChart: null,
-    plannerNewUsersChart: null,
-    plannerD7Chart: null,
-
-    renderPlannerCharts() {
-      if (this.viewMode !== 'planner') return;
-      if (!this.plannerData?.trend?.length) return;
-      const trend = this.plannerData.trend;
-      const labels = trend.map(d => d.month_label.replace(/\d{4}년 /, ''));
-      const mauVals = trend.map(d => d.mau);
-      const newVals = trend.map(d => d.new_users);
-
-      const chartOpts = (color) => ({
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: {
-          backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1,
-          titleColor: '#94a3b8', bodyColor: '#f1f5f9',
-        }},
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 45, minRotation: 0 } },
-          y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 },
-            callback: v => v >= 1000 ? (v/1000).toFixed(1)+'K' : v } },
-        },
-      });
-
-      const mkDataset = (data, color, label) => ({
-        label, data,
-        backgroundColor: color + '44',
-        borderColor: color,
-        borderWidth: 2,
-        borderRadius: 4,
-      });
-
-      if (this.plannerMauChart) { this.plannerMauChart.destroy(); this.plannerMauChart = null; }
-      const mauCanvas = document.getElementById('plannerMauChart');
-      if (mauCanvas && mauCanvas.offsetParent) {
-        try {
-          this.plannerMauChart = new Chart(mauCanvas, {
-            type: 'bar',
-            data: { labels, datasets: [mkDataset(mauVals, '#6366f1', 'MAU')] },
-            options: chartOpts('#6366f1'),
-          });
-          this.plannerMauChart.resize();
-        } catch(e) { console.error('[planner] MAU 차트 렌더링 실패:', e); }
-      }
-
-      if (this.plannerNewUsersChart) { this.plannerNewUsersChart.destroy(); this.plannerNewUsersChart = null; }
-      const nuCanvas = document.getElementById('plannerNewUsersChart');
-      if (nuCanvas && nuCanvas.offsetParent) {
-        try {
-          this.plannerNewUsersChart = new Chart(nuCanvas, {
-            type: 'bar',
-            data: { labels, datasets: [mkDataset(newVals, '#10b981', '신규 가입자')] },
-            options: chartOpts('#10b981'),
-          });
-          this.plannerNewUsersChart.resize();
-        } catch(e) { console.error('[planner] 신규 가입자 차트 렌더링 실패:', e); }
-      }
-
-      // W1 리텐션 주차 차트
-      if (this.plannerD7Chart) { this.plannerD7Chart.destroy(); this.plannerD7Chart = null; }
-      const d7Canvas = document.getElementById('plannerD7Chart');
-      const d7weeks  = this.plannerData?.d7_weekly ?? [];
-      if (d7Canvas && d7Canvas.offsetParent && d7weeks.length) {
-        const d7Labels = d7weeks.map(w => w.label);
-        const d7Vals   = d7weeks.map(w => w.rate ?? null);
-        const avgRate  = this.plannerData?.auto_kpi?.d7_retention_rate;
-        try {
-          this.plannerD7Chart = new Chart(d7Canvas, {
-            type: 'line',
-            data: {
-              labels: d7Labels,
-              datasets: [
-                {
-                  label: 'W1 리텐션 (%)',
-                  data: d7Vals,
-                  borderColor: '#f59e0b',
-                  backgroundColor: '#f59e0b22',
-                  borderWidth: 2,
-                  pointBackgroundColor: '#f59e0b',
-                  pointRadius: 5,
-                  tension: 0.3,
-                  fill: true,
-                },
-                ...(avgRate !== null && avgRate !== undefined ? [{
-                  label: `평균 ${avgRate.toFixed(1)}%`,
-                  data: d7Labels.map(() => avgRate),
-                  borderColor: '#fcd34d88',
-                  borderWidth: 1.5,
-                  borderDash: [5, 4],
-                  pointRadius: 0,
-                  fill: false,
-                }] : []),
-              ],
-            },
-            options: {
-              responsive: true, maintainAspectRatio: false,
-              plugins: {
-                legend: { display: true, labels: { color: '#94a3b8', font: { size: 10 } } },
-                tooltip: {
-                  backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1,
-                  titleColor: '#94a3b8', bodyColor: '#f1f5f9',
-                  callbacks: {
-                    afterBody: (items) => {
-                      const w = d7weeks[items[0].dataIndex];
-                      return w ? [`총 사용자: ${w.day0.toLocaleString()}명`, `W1 활성: ${w.day7.toLocaleString()}명`] : [];
-                    },
-                  },
-                },
-              },
-              scales: {
-                x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-                y: {
-                  grid: { color: '#334155' },
-                  ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' },
-                  min: 0,
-                },
-              },
-            },
-          });
-          this.plannerD7Chart.resize();
-        } catch(e) { console.error('[planner] W1 리텐션 차트 렌더링 실패:', e); }
-      }
-
-      setTimeout(() => {
-        this.plannerMauChart?.resize();
-        this.plannerNewUsersChart?.resize();
-        this.plannerD7Chart?.resize();
-      }, 150);
-    },
 
     // ── 플래너 전용 ──
     fmtNum(v) {
@@ -3386,7 +3313,6 @@ function kpiApp() {
           this.scheduleKptEditors();
           this.scheduleMonthlyFeedbackEditor();
           this.scheduleActionTaskEditors();
-          this.schedulePlannerCharts();
         }
       }
     },
