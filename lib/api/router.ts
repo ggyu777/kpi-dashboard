@@ -875,11 +875,20 @@ ${actions.map((a) => `• [${a.channel ?? ""}] ${a.action ?? ""}`).join("\n") ||
 `;
 }
 
-interface MGoal { goal?: string; target?: string | number; actual?: string | number; rate?: number | string }
+interface MPlanGoal { name?: string; target?: string | number; actual?: string | number; actual_rate?: number | string; status?: string }
 interface MKpi { mau?: number; mau_prev?: number; mau_mom?: number; new_users?: number; new_users_prev?: number; new_users_mom?: number; cumulative_users?: number; d7_retention_rate?: number }
-interface MPlan { goals?: MGoal[]; retrospective?: string; next_plan?: string }
+interface MPlanNextAction { channel?: string; action?: string; goal?: string; deadline?: string }
+interface MPlan {
+  author?: string; north_star?: string; mau_target?: number;
+  prev_goals?: MPlanGoal[]; goals?: MPlanGoal[];
+  kpt_keep?: string; kpt_problem?: string; kpt_try?: string;
+  next_actions?: MPlanNextAction[];
+  d7_retention_manual?: number | null; d7_note?: string;
+  monthly_note?: string;
+  ad_revenues?: Record<string, number>;
+}
 interface MEvent { category?: string; label?: string; count: number; mom_change?: number | null }
-interface MAd { label?: string; clicks: number; mom_change?: number | null; impressions?: number; ctr?: number; revenue?: number }
+interface MAd { id?: string; label?: string; clicks: number; mom_change?: number | null; impressions?: number; ctr?: number }
 interface MonthlyData { month?: string; month_label?: string; data_month?: string; data_month_label?: string; auto_kpi?: MKpi; plan?: MPlan; events?: MEvent[]; ad_placements?: MAd[] }
 
 function buildMonthlyMd(d: MonthlyData): string {
@@ -890,6 +899,39 @@ function buildMonthlyMd(d: MonthlyData): string {
   const plan: MPlan = d.plan ?? {};
   const events: MEvent[] = d.events ?? [];
   const adPlacements: MAd[] = d.ad_placements ?? [];
+
+  const author = plan.author || "조규준";
+  const northStar = plan.north_star || "(미입력)";
+  const mauTarget = plan.mau_target ? fmtNum(plan.mau_target) : "—";
+
+  // 지난달 계획
+  const prevGoals: MPlanGoal[] = plan.prev_goals ?? [];
+  const prevGoalRows = prevGoals.length > 0
+    ? prevGoals.map((g) =>
+        `| ${g.name ?? ""} | ${g.target ?? ""} | ${g.actual ?? ""} | ${g.actual_rate ?? "—"} | ${g.status ?? "—"} |`
+      ).join("\n")
+    : "| (데이터 없음) | — | — | — | — |";
+
+  // 이번달 목표
+  const goals: MPlanGoal[] = plan.goals ?? [];
+  const goalRows = goals.length > 0
+    ? goals.map((g) =>
+        `| ${g.name ?? ""} | ${g.target ?? ""} | ${g.actual ?? ""} | ${g.actual_rate ?? "—"} | ${g.status ?? statusEmoji(g.actual_rate)} |`
+      ).join("\n")
+    : "| (목표 미입력) | — | — | — | — |";
+
+  // KPT
+  const kptKeep = plan.kpt_keep || "(미입력)";
+  const kptProblem = plan.kpt_problem || "(미입력)";
+  const kptTry = plan.kpt_try || "(미입력)";
+
+  // 핵심 액션
+  const nextActions: MPlanNextAction[] = plan.next_actions ?? [];
+  const actionRows = nextActions.length > 0
+    ? nextActions.map((a, i) =>
+        `| ${i + 1} | ${a.channel ?? "—"} | ${a.action ?? "—"} | ${a.goal ?? "—"} | ${a.deadline ?? "—"} |`
+      ).join("\n")
+    : "| — | — | — | — | — |";
 
   // 이벤트 카테고리별
   const catMap = new Map<string, typeof events>();
@@ -905,35 +947,85 @@ function buildMonthlyMd(d: MonthlyData): string {
     eventsSection += "\n";
   }
 
-  // 광고 지표
-  const totalRevenue = adPlacements.reduce((s, p) => s + (p.revenue ?? 0), 0);
+  // 광고 지표 (매출은 plan.ad_revenues에서 가져옴)
+  const adRevenues: Record<string, number> = plan.ad_revenues ?? {};
+  const totalRevenue = Object.values(adRevenues).reduce((s, v) => s + (v ?? 0), 0);
   const adRows = adPlacements.map((p) => {
-    const rev = p.revenue != null ? fmtNum(p.revenue) : "—";
-    const ctr = p.ctr != null ? (p.ctr * 100).toFixed(2) + "%" : "—";
+    const rev = p.id && adRevenues[p.id] != null ? fmtNum(adRevenues[p.id]) : "—";
+    const ctr = p.ctr != null ? p.ctr.toFixed(2) + "%" : "—";
     return `| ${p.label ?? ""} | ${fmtNum(p.clicks)} | ${fmtPct(p.mom_change)} | ${fmtNum(p.impressions ?? 0)} | ${ctr} | ${rev} |`;
   });
-  adRows.push(`| **합계** | — | — | — | — | **${fmtNum(totalRevenue)}** |`);
+  adRows.push(`| **합계** | — | — | — | — | **${fmtNum(totalRevenue)}원** |`);
 
-  // 플랜 필드
-  const goals: MGoal[] = plan.goals ?? [];
-  const goalRows = goals.length > 0
-    ? goals.map((g) =>
-        `| ${g.goal ?? ""} | ${g.target ?? ""} | ${g.actual ?? ""} | ${g.rate ?? "—"}% | ${statusEmoji(g.rate)} |`
-      ).join("\n")
-    : "| (목표 미입력) | — | — | — | — |";
+  // 종합 특이사항
+  const monthlyNote = plan.monthly_note || "(미입력)";
 
-  const retrospective: string = plan.retrospective ?? "(미입력)";
-  const nextPlan: string = plan.next_plan ?? "(미입력)";
+  // D7 리텐션
+  const d7Rate = kpi.d7_retention_rate != null
+    ? kpi.d7_retention_rate.toFixed(1) + "%"
+    : (plan.d7_retention_manual != null ? plan.d7_retention_manual.toFixed(1) + "% (수동)" : "—");
+  const d7Note = plan.d7_note ? ` · ${plan.d7_note}` : "";
 
   return `# 📅 ${monthLabel} | Monthly Plan | 플랫폼팀
 
-> 작성일: ${today}  |  작성자: 조규준
-> 📌 플래너: **${monthLabel}**
-> 📌 KPI 기준: **${dataLabel} 실적** (전월 기준)
+> 작성일: ${today}  |  작성자: ${author}
+> 🎯 North Star: **${northStar}**
+> 📌 플래너: **${monthLabel}** · KPI 기준: **${dataLabel} 실적** (전월 기준)
+> 🎯 MAU 목표: **${mauTarget}**
 
 ---
 
-## ① ${monthLabel} 목표 & 달성률
+## ① 지난달 계획 (${dataLabel} 달성률)
+
+| 핵심 목표 | 목표치 | 실적 | 달성률 | 상태 |
+|--------|------|-----|------|-----|
+${prevGoalRows}
+
+---
+
+## ② 월간 회고 (KPT)
+
+### 👍 Keep — 잘 된 것, 유지할 것
+${kptKeep}
+
+### ⚠️ Problem — 아쉬운 점, 문제 원인
+${kptProblem}
+
+### 🚀 Try — 다음 달 개선 시도
+${kptTry}
+
+---
+
+## ③ KPI 현황 (${dataLabel} 실적)
+
+| 구분 | 전월 | 이번달 실적 | MoM |
+|-----|------|-----------|-----|
+| MAU | ${fmtNum(kpi.mau_prev)} | ${fmtNum(kpi.mau)} | ${fmtPct(kpi.mau_mom)} |
+| 신규 가입자 | ${fmtNum(kpi.new_users_prev)} | ${fmtNum(kpi.new_users)} | ${fmtPct(kpi.new_users_mom)} |
+| 누적 사용자 | — | ${fmtNum(kpi.cumulative_users)} | — |
+| W1 리텐션 | — | ${d7Rate}${d7Note} | — |
+
+---
+
+## ④ 기능별 지표 (${dataLabel} 실적 · GA4 자동 · MoM)
+${eventsSection}
+---
+
+## ⑤ 광고별 지표 (${dataLabel} 실적 · GA4 자동 + 매출 수동)
+
+| 위치 | 클릭수 | MoM | 노출수 | CTR | 매출(원) |
+|-----|-------|-----|------|-----|---------|
+${adRows.join("\n")}
+
+---
+
+## 📝 종합 특이사항
+
+${monthlyNote}
+
+---
+
+## ⑥ 이번달 목표
 
 | 핵심 목표 | 목표치 | 실적 | 달성률 | 상태 |
 |--------|------|-----|------|-----|
@@ -943,37 +1035,10 @@ ${goalRows}
 
 ---
 
-## ② KPI 현황 (${dataLabel} 실적)
+## ⑦ 이번 달 핵심 액션
 
-| 구분 | 전월 | 이번달 실적 | MoM |
-|-----|------|-----------|-----|
-| MAU | ${fmtNum(kpi.mau_prev)} | ${fmtNum(kpi.mau)} | ${fmtPct(kpi.mau_mom)} |
-| 신규 가입자 | ${fmtNum(kpi.new_users_prev)} | ${fmtNum(kpi.new_users)} | ${fmtPct(kpi.new_users_mom)} |
-| 누적 사용자 | — | ${fmtNum(kpi.cumulative_users)} | — |
-| D7 리텐션 | — | ${kpi.d7_retention_rate != null ? (kpi.d7_retention_rate * 100).toFixed(1) + "%" : "—"} | — |
-
----
-
-## ③ 기능별 지표 (${dataLabel} 실적 · GA4 자동 · MoM)
-${eventsSection}
----
-
-## ④ 광고별 지표 (${dataLabel} 실적 · GA4 자동 + 매출 수동)
-
-| 위치 | 클릭수 | MoM | 노출수 | CTR | 매출(원) |
-|-----|-------|-----|------|-----|---------|
-${adRows.join("\n")}
-
----
-
-## ⑤ 월간 회고
-
-${retrospective}
-
----
-
-## ⑥ 다음달 플랜
-
-${nextPlan}
+| # | 채널 | 핵심 액션 | 목표 | 마감 |
+|---|------|---------|-----|------|
+${actionRows}
 `;
 }
