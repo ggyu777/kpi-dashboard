@@ -503,6 +503,7 @@ export async function handleApi(method: string, pathname: string, req: Request) 
         }),
       ),
       plan: db.getMonthlyPlan(month),
+      prevPlan: db.getMonthlyPlan(dataMonth),
     });
 
     const trendData = mergeTrendWithOverview(results.trend as Array<{ month: string; month_label: string; mau: number; new_users: number }>);
@@ -568,6 +569,7 @@ export async function handleApi(method: string, pathname: string, req: Request) 
       events,
       ad_placements: adPlacements,
       plan: results.plan,
+      prev_plan: results.prevPlan,
     });
   }
 

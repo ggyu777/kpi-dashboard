@@ -1187,7 +1187,59 @@
         </div>
       </div>
 
-      <!-- ① 자동 KPI 카드 -->
+      <!-- ① 지난달 계획 -->
+      <div class="planner-section">
+        <div class="planner-section-title">
+          ① 지난달 계획
+          <span style="font-size:10px;font-weight:400;color:var(--dim)" x-text="'· ' + (plannerData?.data_month_label || '') + ' 달성률'"></span>
+        </div>
+        <template x-if="plannerData.prev_plan && plannerData.prev_plan.goals && plannerData.prev_plan.goals.length">
+          <div>
+            <div class="placement-table-wrap">
+              <table class="planner-goals-table">
+                <thead><tr>
+                  <th>핵심 목표</th><th>목표치</th><th>실적</th><th>달성률</th><th>상태</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="(goal, idx) in plannerData.prev_plan.goals" :key="idx">
+                    <tr>
+                      <td style="color:var(--text)" x-text="goal.name || '—'"></td>
+                      <td style="color:var(--muted)" x-text="goal.target || '—'"></td>
+                      <td style="color:var(--text)" x-text="goal.actual || '—'"></td>
+                      <td style="color:var(--text)" x-text="goal.actual_rate ? goal.actual_rate + '%' : '—'"></td>
+                      <td x-text="goal.status || '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+        <template x-if="!plannerData.prev_plan || !plannerData.prev_plan.goals || !plannerData.prev_plan.goals.length">
+          <div style="font-size:12px;color:var(--dim);padding:8px 0">지난달 목표 데이터가 없습니다.</div>
+        </template>
+      </div>
+
+      <!-- ② 월간 회고 (KPT) -->
+      <div class="planner-section">
+        <div class="planner-section-title">② 월간 회고 (KPT)</div>
+        <div class="planner-kpt-grid">
+          <div class="planner-kpt-card">
+            <div class="planner-kpt-title">👍 Keep <span style="font-weight:400;font-size:11px;color:var(--muted)">잘 된 것, 유지할 것</span></div>
+            <div id="kpt-editor-keep"></div>
+          </div>
+          <div class="planner-kpt-card">
+            <div class="planner-kpt-title">⚠️ Problem <span style="font-weight:400;font-size:11px;color:var(--muted)">아쉬운 점, 문제 원인</span></div>
+            <div id="kpt-editor-problem"></div>
+          </div>
+          <div class="planner-kpt-card">
+            <div class="planner-kpt-title">🚀 Try <span style="font-weight:400;font-size:11px;color:var(--muted)">다음 달 개선 시도</span></div>
+            <div id="kpt-editor-try"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 자동 KPI 카드 -->
       <div class="planner-section">
         <div class="planner-section-title">
           📊 자동 불러온 KPI
@@ -1310,38 +1362,7 @@
         </template>
       </div>
 
-      <!-- ② 이번 달 목표 & 달성률 -->
-      <div class="planner-section">
-        <div class="planner-section-title">① 이번 달 목표 &amp; 달성률</div>
-        <div class="placement-table-wrap">
-          <table class="planner-goals-table">
-            <thead><tr>
-              <th>핵심 목표</th><th>목표치</th><th>실적</th><th>달성률</th><th>상태</th><th></th>
-            </tr></thead>
-            <tbody>
-              <template x-for="(goal, idx) in plannerForm.goals" :key="idx">
-                <tr>
-                  <td><input type="text" placeholder="목표명" x-model="goal.name"></td>
-                  <td><input type="text" placeholder="85,000" x-model="goal.target" style="width:90px"></td>
-                  <td><input type="text" placeholder="실적" x-model="goal.actual" style="width:80px"></td>
-                  <td><input type="text" placeholder="97%" x-model="goal.actual_rate" style="width:60px"></td>
-                  <td>
-                    <select x-model="goal.status">
-                      <option value="🟢">🟢</option>
-                      <option value="🟡">🟡</option>
-                      <option value="🔴">🔴</option>
-                    </select>
-                  </td>
-                  <td><button class="btn-del-row" @click="plannerForm.goals.splice(idx,1)">×</button></td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-        <button class="btn-add-row" @click="plannerForm.goals.push({name:'',target:'',actual:'',actual_rate:'',status:'🟡'})">+ 목표 추가</button>
-      </div>
-
-      <!-- ③ 기능별 지표 -->
+      <!-- ④ 기능별 지표 -->
       <div class="planner-section">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
           <div class="planner-section-title" style="margin-bottom:0">③ 기능별 지표 <span style="font-size:10px;font-weight:400;color:var(--dim)">(GA4 자동)</span> <span style="font-size:11px;font-weight:500;background:rgba(245,158,11,.15);color:#fcd34d;border:1px solid rgba(245,158,11,.3);border-radius:20px;padding:2px 8px" x-text="plannerData?.data_month_label + ' 기준'"></span></div>
@@ -1416,23 +1437,43 @@
         </div>
       </div>
 
-      <!-- ⑤ 월간 회고 (KPT) -->
+      <!-- 📝 종합 특이사항 -->
       <div class="planner-section">
-        <div class="planner-section-title">⑤ 월간 회고 (KPT)</div>
-        <div class="planner-kpt-grid">
-          <div class="planner-kpt-card">
-            <div class="planner-kpt-title">👍 Keep <span style="font-weight:400;font-size:11px;color:var(--muted)">잘 된 것, 유지할 것</span></div>
-            <div id="kpt-editor-keep"></div>
-          </div>
-          <div class="planner-kpt-card">
-            <div class="planner-kpt-title">⚠️ Problem <span style="font-weight:400;font-size:11px;color:var(--muted)">아쉬운 점, 문제 원인</span></div>
-            <div id="kpt-editor-problem"></div>
-          </div>
-          <div class="planner-kpt-card">
-            <div class="planner-kpt-title">🚀 Try <span style="font-weight:400;font-size:11px;color:var(--muted)">다음 달 개선 시도</span></div>
-            <div id="kpt-editor-try"></div>
-          </div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">📝 종합 특이사항</div>
+        <textarea class="planner-input" rows="2" placeholder="이번 달 특이사항을 입력하세요..."
+          x-model="plannerForm.monthly_note"
+          style="width:100%;resize:vertical;font-size:13px;line-height:1.5"></textarea>
+      </div>
+
+      <!-- ⑤ 이번달 목표 -->
+      <div class="planner-section">
+        <div class="planner-section-title">⑤ 이번달 목표</div>
+        <div class="placement-table-wrap">
+          <table class="planner-goals-table">
+            <thead><tr>
+              <th>핵심 목표</th><th>목표치</th><th>실적</th><th>달성률</th><th>상태</th><th></th>
+            </tr></thead>
+            <tbody>
+              <template x-for="(goal, idx) in plannerForm.goals" :key="idx">
+                <tr>
+                  <td><input type="text" placeholder="목표명" x-model="goal.name"></td>
+                  <td><input type="text" placeholder="85,000" x-model="goal.target" style="width:90px"></td>
+                  <td><input type="text" placeholder="실적" x-model="goal.actual" style="width:80px"></td>
+                  <td><input type="text" placeholder="97%" x-model="goal.actual_rate" style="width:60px"></td>
+                  <td>
+                    <select x-model="goal.status">
+                      <option value="🟢">🟢</option>
+                      <option value="🟡">🟡</option>
+                      <option value="🔴">🔴</option>
+                    </select>
+                  </td>
+                  <td><button class="btn-del-row" @click="plannerForm.goals.splice(idx,1)">×</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </div>
+        <button class="btn-add-row" @click="plannerForm.goals.push({name:'',target:'',actual:'',actual_rate:'',status:'🟡'})">+ 목표 추가</button>
       </div>
 
       <!-- ⑥ 이번 달 핵심 액션 -->
@@ -1726,6 +1767,7 @@ function kpiApp() {
       next_actions: [],
       d7_retention_manual: null,
       d7_note: '',
+      monthly_note: '',
       ad_revenues: { top: 0, center: 0, bottom: 0, popular_slot: 0, popup: 0 },
     },
     eventCategories: [
@@ -3287,6 +3329,7 @@ function kpiApp() {
           next_actions:         this.normalizeNextActions(p.next_actions),
           d7_retention_manual:  p.d7_retention_manual  ?? null,
           d7_note:              p.d7_note              ?? '',
+          monthly_note:         p.monthly_note         ?? '',
           ad_revenues:          { ...this.defaultAdRevenues(), ...(p.ad_revenues ?? {}) },
         };
         await this.loadPlannerTasksAndFeedback();
