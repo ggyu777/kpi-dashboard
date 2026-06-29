@@ -935,7 +935,7 @@
         </div>
         <div class="planner-auto-grid">
           <div class="planner-auto-card">
-            <div class="pac-label">MAU (주간 활성)</div>
+            <div class="pac-label">WAU (주간 활성)</div>
             <div class="pac-value" x-text="fmtNum(weeklyPlannerData.auto_kpi.mau)"></div>
             <div class="pac-mom" :class="weeklyPlannerData.auto_kpi.mau_wow > 0 ? 'wow-up' : weeklyPlannerData.auto_kpi.mau_wow < 0 ? 'wow-down' : 'wow-flat'">
               <span x-text="fmtWow(weeklyPlannerData.auto_kpi.mau_wow)"></span>
