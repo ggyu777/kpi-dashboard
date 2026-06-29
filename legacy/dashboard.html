@@ -1972,8 +1972,12 @@ function kpiApp() {
         if (!el) return;
         const content = this.plannerForm?.[formField] ?? '';
         if (window._kptEditors[key]) {
-          this._setQuillContent(window._kptEditors[key], content);
-          return;
+          if (!document.body.contains(window._kptEditors[key].root)) {
+            delete window._kptEditors[key]; // DOM 재생성 시 스테일 인스턴스 제거
+          } else {
+            this._setQuillContent(window._kptEditors[key], content);
+            return;
+          }
         }
         const quill = new Quill(el, {
           theme: 'snow',
