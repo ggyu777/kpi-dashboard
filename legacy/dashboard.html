@@ -206,6 +206,9 @@
   .task-action-input:focus { border-color: rgba(99,102,241,.6); }
   .task-action-add-btn { background: none; border: 1px dashed rgba(99,102,241,.4); color: #a5b4fc; border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; margin-top: 2px; }
   .task-action-add-btn:hover { background: rgba(99,102,241,.1); }
+  .task-edit-btn { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 11px; padding: 0 3px; flex-shrink: 0; }
+  .task-edit-btn:hover { color: #fcd34d; }
+  .task-edit-input { flex: 1; background: rgba(255,255,255,.06); border: 1px solid rgba(99,102,241,.6); border-radius: 6px; padding: 2px 7px; font-size: 13px; color: var(--text); outline: none; }
   .feedback-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
   .feedback-card .ql-editor { min-height: 160px; }
 
@@ -1104,12 +1107,26 @@
             <div class="task-item">
               <div class="task-row">
                 <input type="checkbox" :checked="task.done" @change="toggleWeeklyTask(task.id)">
-                <span class="task-row-text" :class="task.done ? 'done' : ''" x-text="task.text"></span>
+                <template x-if="!task._editing">
+                  <span class="task-row-text" :class="task.done ? 'done' : ''"
+                    x-text="task.text"
+                    @dblclick="startEditTask(task.id)"
+                    title="더블클릭하여 수정"></span>
+                </template>
+                <template x-if="task._editing">
+                  <input type="text" class="task-edit-input"
+                    :value="task.text"
+                    @keydown.enter.prevent="finishEditTask(task.id, $event.target.value)"
+                    @keydown.escape.prevent="cancelEditTask(task.id)"
+                    @blur="finishEditTask(task.id, $event.target.value)"
+                    x-init="$el.focus(); $el.select()">
+                </template>
+                <button class="task-edit-btn" @click="startEditTask(task.id)" title="수정" x-show="!task._editing">✏</button>
                 <button class="task-action-toggle" @click="toggleTaskActions(task.id)"
-                  :title="(task.actions?.length ? task.actions.length + '개 ' : '') + '핵심 액션'"
-                  :style="task.actions?.length ? 'color:#a5b4fc' : ''">
+                  :title="((task.actions ?? []).length ? (task.actions ?? []).length + '개 ' : '') + '핵심 액션'"
+                  :style="(task.actions ?? []).length ? 'color:#a5b4fc' : ''">
                   <span x-text="task._showActions ? '▲' : '▼'"></span>
-                  <span style="font-size:10px" x-show="task.actions?.length" x-text="task.actions.length"></span>
+                  <span style="font-size:10px" x-show="(task.actions ?? []).length" x-text="(task.actions ?? []).length"></span>
                 </button>
                 <button class="task-del" @click="removeWeeklyTask(task.id)" title="삭제">×</button>
               </div>
@@ -2124,6 +2141,22 @@ function kpiApp() {
       this.persistWeeklyTasks(this.week, tasks);
     },
 
+    startEditTask(id) {
+      this.weeklyTasks = this.weeklyTasks.map(t => t.id === id ? { ...t, _editing: true } : t);
+    },
+
+    finishEditTask(id, newText) {
+      const text = (newText || '').trim();
+      if (!text) { this.cancelEditTask(id); return; }
+      const tasks = this.weeklyTasks.map(t => t.id === id ? { ...t, text, _editing: false } : t);
+      this.weeklyTasks = tasks;
+      this.persistWeeklyTasks(this.week, tasks);
+    },
+
+    cancelEditTask(id) {
+      this.weeklyTasks = this.weeklyTasks.map(t => t.id === id ? { ...t, _editing: false } : t);
+    },
+
     toggleTaskActions(id) {
       this.weeklyTasks = this.weeklyTasks.map(t =>
         t.id === id ? { ...t, _showActions: !t._showActions } : t
@@ -2728,7 +2761,7 @@ function kpiApp() {
           if (!r.ok) throw new Error();
           const payload = await r.json();
           this.dailyCache = { ...this.dailyCache, [key]: payload };
-          this.$nextTick(() => this.paintKpiDailyChart(entry));
+          setTimeout(() => this.paintKpiDailyChart(entry), 50);
         } catch (e) {
           console.error('[daily kpi]', e);
           this.dailyCache = { ...this.dailyCache, [key]: { error: true } };
@@ -2754,7 +2787,7 @@ function kpiApp() {
           if (!r.ok) throw new Error();
           const payload = await r.json();
           this.dailyCache = { ...this.dailyCache, [key]: payload };
-          this.$nextTick(() => this.paintEventDailyChart(evt));
+          setTimeout(() => this.paintEventDailyChart(evt), 50);
         } catch (e) {
           console.error('[daily event]', e);
           this.dailyCache = { ...this.dailyCache, [key]: { error: true } };
@@ -2780,7 +2813,7 @@ function kpiApp() {
           if (!r.ok) throw new Error();
           const payload = await r.json();
           this.dailyCache = { ...this.dailyCache, [key]: payload };
-          this.$nextTick(() => this.paintPlacementDailyChart(p));
+          setTimeout(() => this.paintPlacementDailyChart(p), 50);
         } catch (e) {
           console.error('[daily placement]', e);
           this.dailyCache = { ...this.dailyCache, [key]: { error: true } };
