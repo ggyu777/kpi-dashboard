@@ -196,15 +196,19 @@ export function parseAppDownloadsCsv(filePath = dataPath("app_downloads.csv")) {
 }
 
 export function getCsvNewUsersByPlatform(monthKey: string) {
+  // user_acquisition.csv의 전체 합계(parts[1])를 총 신규 가입자로 사용
+  // app_downloads.csv는 iOS 플랫폼 구분 표시용으로만 활용
+  const total = parseUserAcquisitionCsv()[monthKey] ?? 0;
   const ios = parseAppDownloadsCsv()[monthKey] ?? 0;
-  const android = parseUserAcquisitionCsv()[monthKey] ?? 0;
-  if (ios || android) return { ios, android };
+  const android = Math.max(0, total - ios);
+  if (total) return { ios, android };
   return null;
 }
 
 export function getCsvNewUsers(monthKey: string) {
-  const plat = getCsvNewUsersByPlatform(monthKey);
-  return plat ? plat.ios + plat.android : null;
+  // user_acquisition.csv의 전체(모든 국가/지역) 합계만 사용 (이중 계산 방지)
+  const total = parseUserAcquisitionCsv()[monthKey];
+  return total ?? null;
 }
 
 export function mergeTrendWithOverview(
