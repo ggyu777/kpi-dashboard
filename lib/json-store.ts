@@ -252,7 +252,7 @@ export type WeeklyNotesPayload = {
   next_week_strategy: string;
 };
 
-const WEEKLY_PLAN_KEYS = ["author", "north_star", "goals", "actions", "ad_revenues"] as const;
+const WEEKLY_PLAN_KEYS = ["author", "north_star", "goals", "actions", "ad_revenues", "went_well", "went_bad", "ad_note"] as const;
 
 export async function saveWeeklyPlanWithNotes(
   week: string,

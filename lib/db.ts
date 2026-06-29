@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS ad_conversions (week VARCHAR(16), placement VARCHAR(3
 CREATE TABLE IF NOT EXISTS ad_placement_meta (week VARCHAR(16), placement VARCHAR(32), revenue INTEGER, note TEXT DEFAULT '', PRIMARY KEY (week, placement));
 CREATE TABLE IF NOT EXISTS weekly_notes (week VARCHAR(16) PRIMARY KEY, kpi_summary TEXT DEFAULT '', project_progress TEXT DEFAULT '', next_week_strategy TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS weekly_tasks (week VARCHAR(16) PRIMARY KEY, tasks JSONB DEFAULT '[]');
-CREATE TABLE IF NOT EXISTS weekly_plans (week VARCHAR(16) PRIMARY KEY, author VARCHAR(128) DEFAULT '', north_star TEXT DEFAULT '', goals JSONB DEFAULT '[]', actions JSONB DEFAULT '[]', ad_revenues JSONB DEFAULT '{}');
+CREATE TABLE IF NOT EXISTS weekly_plans (week VARCHAR(16) PRIMARY KEY, author VARCHAR(128) DEFAULT '', north_star TEXT DEFAULT '', goals JSONB DEFAULT '[]', actions JSONB DEFAULT '[]', ad_revenues JSONB DEFAULT '{}', went_well TEXT DEFAULT '', went_bad TEXT DEFAULT '', ad_note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS monthly_plans (month VARCHAR(16) PRIMARY KEY, author VARCHAR(128) DEFAULT '', north_star TEXT DEFAULT '', mau_target INTEGER DEFAULT 0, goals JSONB DEFAULT '[]', kpt_keep TEXT DEFAULT '', kpt_problem TEXT DEFAULT '', kpt_try TEXT DEFAULT '', next_actions JSONB DEFAULT '[]', ad_revenues JSONB DEFAULT '{}');
 CREATE TABLE IF NOT EXISTS monthly_feedback (month VARCHAR(16) PRIMARY KEY, feedback TEXT DEFAULT '');
 `;
@@ -211,9 +211,9 @@ async function pgGetWeeklyPlan(week: string) {
   const { defaultAdRevenues } = await import("./constants");
   const db = getSql();
   const rows = await db`SELECT * FROM weekly_plans WHERE week = ${week}`;
-  if (!rows.length) return { week, author: "", north_star: "", goals: [], actions: [], ad_revenues: defaultAdRevenues() };
+  if (!rows.length) return { week, author: "", north_star: "", goals: [], actions: [], ad_revenues: defaultAdRevenues(), went_well: "", went_bad: "", ad_note: "" };
   const r = rows[0];
-  return { week, author: r.author ?? "", north_star: r.north_star ?? "", goals: r.goals ?? [], actions: r.actions ?? [], ad_revenues: { ...defaultAdRevenues(), ...(r.ad_revenues as Record<string, number>) } };
+  return { week, author: r.author ?? "", north_star: r.north_star ?? "", goals: r.goals ?? [], actions: r.actions ?? [], ad_revenues: { ...defaultAdRevenues(), ...(r.ad_revenues as Record<string, number>) }, went_well: r.went_well ?? "", went_bad: r.went_bad ?? "", ad_note: r.ad_note ?? "" };
 }
 
 async function pgSaveWeeklyPlan(week: string, data: Record<string, unknown>) {
@@ -231,15 +231,15 @@ async function pgSaveWeeklyPlanWithNotes(
   notes?: jsonStore.WeeklyNotesPayload,
 ) {
   const db = getSql();
-  const planKeys = ["author", "north_star", "goals", "actions", "ad_revenues"] as const;
+  const planKeys = ["author", "north_star", "goals", "actions", "ad_revenues", "went_well", "went_bad", "ad_note"] as const;
   const touchesPlan = planKeys.some((k) => k in planData);
 
   await db.begin(async (sql) => {
     if (touchesPlan) {
       await sql`
-        INSERT INTO weekly_plans (week, author, north_star, goals, actions, ad_revenues)
-        VALUES (${week}, ${String(planData.author ?? "")}, ${String(planData.north_star ?? "")}, ${sql.json((planData.goals ?? []) as never)}, ${sql.json((planData.actions ?? []) as never)}, ${sql.json((planData.ad_revenues ?? {}) as never)})
-        ON CONFLICT (week) DO UPDATE SET author = EXCLUDED.author, north_star = EXCLUDED.north_star, goals = EXCLUDED.goals, actions = EXCLUDED.actions, ad_revenues = EXCLUDED.ad_revenues
+        INSERT INTO weekly_plans (week, author, north_star, goals, actions, ad_revenues, went_well, went_bad, ad_note)
+        VALUES (${week}, ${String(planData.author ?? "")}, ${String(planData.north_star ?? "")}, ${sql.json((planData.goals ?? []) as never)}, ${sql.json((planData.actions ?? []) as never)}, ${sql.json((planData.ad_revenues ?? {}) as never)}, ${String(planData.went_well ?? "")}, ${String(planData.went_bad ?? "")}, ${String(planData.ad_note ?? "")})
+        ON CONFLICT (week) DO UPDATE SET author = EXCLUDED.author, north_star = EXCLUDED.north_star, goals = EXCLUDED.goals, actions = EXCLUDED.actions, ad_revenues = EXCLUDED.ad_revenues, went_well = EXCLUDED.went_well, went_bad = EXCLUDED.went_bad, ad_note = EXCLUDED.ad_note
       `;
     }
     if (notes) {
