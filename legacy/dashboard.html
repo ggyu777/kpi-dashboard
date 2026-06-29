@@ -197,6 +197,15 @@
   .task-go-week { font-size: 11px; color: #a5b4fc; cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline; white-space: nowrap; }
   .task-empty { font-size: 12px; color: var(--dim); padding: 4px 0 2px; }
   .task-progress { font-size: 11px; color: var(--muted); }
+  .task-item { margin-bottom: 4px; }
+  .task-action-toggle { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 11px; padding: 0 4px; flex-shrink: 0; }
+  .task-action-toggle:hover { color: #a5b4fc; }
+  .task-actions-panel { margin: 2px 0 6px 22px; padding: 6px 10px; background: rgba(99,102,241,.06); border-left: 2px solid rgba(99,102,241,.3); border-radius: 0 6px 6px 0; }
+  .task-action-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .task-action-input { flex: 1; background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; color: var(--text); outline: none; }
+  .task-action-input:focus { border-color: rgba(99,102,241,.6); }
+  .task-action-add-btn { background: none; border: 1px dashed rgba(99,102,241,.4); color: #a5b4fc; border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; margin-top: 2px; }
+  .task-action-add-btn:hover { background: rgba(99,102,241,.1); }
   .feedback-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
   .feedback-card .ql-editor { min-height: 160px; }
 
@@ -1072,6 +1081,12 @@
             </tbody>
           </table>
         </div>
+        <div style="margin-top:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">📝 종합 특이사항</div>
+          <textarea class="planner-input" rows="2" placeholder="이번 주 광고 관련 특이사항을 입력하세요..."
+            x-model="weeklyPlannerForm.ad_note"
+            style="width:100%;resize:vertical;font-size:13px;line-height:1.5"></textarea>
+        </div>
       </div>
 
       <!-- ④ 이번주 계획 -->
@@ -1086,10 +1101,31 @@
             <div class="task-empty">할일을 추가하세요</div>
           </template>
           <template x-for="task in weeklyTasks" :key="task.id">
-            <div class="task-row">
-              <input type="checkbox" :checked="task.done" @change="toggleWeeklyTask(task.id)">
-              <span class="task-row-text" :class="task.done ? 'done' : ''" x-text="task.text"></span>
-              <button class="task-del" @click="removeWeeklyTask(task.id)" title="삭제">×</button>
+            <div class="task-item">
+              <div class="task-row">
+                <input type="checkbox" :checked="task.done" @change="toggleWeeklyTask(task.id)">
+                <span class="task-row-text" :class="task.done ? 'done' : ''" x-text="task.text"></span>
+                <button class="task-action-toggle" @click="toggleTaskActions(task.id)"
+                  :title="(task.actions?.length ? task.actions.length + '개 ' : '') + '핵심 액션'"
+                  :style="task.actions?.length ? 'color:#a5b4fc' : ''">
+                  <span x-text="task._showActions ? '▲' : '▼'"></span>
+                  <span style="font-size:10px" x-show="task.actions?.length" x-text="task.actions.length"></span>
+                </button>
+                <button class="task-del" @click="removeWeeklyTask(task.id)" title="삭제">×</button>
+              </div>
+              <div class="task-actions-panel" x-show="task._showActions">
+                <template x-for="(act, ai) in (task.actions ?? [])" :key="ai">
+                  <div class="task-action-row">
+                    <span style="color:var(--indigo);font-size:11px;flex-shrink:0">→</span>
+                    <input type="text" class="task-action-input" :value="act"
+                      @change="updateTaskAction(task.id, ai, $event.target.value)"
+                      @keydown.enter.prevent="$event.target.blur()"
+                      placeholder="핵심 액션 내용...">
+                    <button class="task-del" @click="removeTaskAction(task.id, ai)" title="삭제">×</button>
+                  </div>
+                </template>
+                <button class="task-action-add-btn" @click="addTaskAction(task.id)">+ 핵심 액션 추가</button>
+              </div>
             </div>
           </template>
           <div class="task-add-row">
@@ -1638,6 +1674,7 @@ function kpiApp() {
       actions: [],
       went_well: '',
       went_bad: '',
+      ad_note: '',
       ad_revenues: { top: 0, center: 0, bottom: 0, popular_slot: 0, popup: 0 },
     },
     plannerForm: {
@@ -2068,7 +2105,7 @@ function kpiApp() {
     addWeeklyTask() {
       const text = (this.weeklyTaskNew || '').trim();
       if (!text) return;
-      const tasks = [...this.weeklyTasks, { id: this._newTaskId(), text, done: false }];
+      const tasks = [...this.weeklyTasks, { id: this._newTaskId(), text, done: false, actions: [], _showActions: false }];
       this.weeklyTasks = tasks;
       this.weeklyTaskNew = '';
       this.persistWeeklyTasks(this.week, tasks);
@@ -2082,6 +2119,42 @@ function kpiApp() {
 
     removeWeeklyTask(id) {
       const tasks = this.weeklyTasks.filter(t => t.id !== id);
+      this.weeklyTasks = tasks;
+      this.persistWeeklyTasks(this.week, tasks);
+    },
+
+    toggleTaskActions(id) {
+      this.weeklyTasks = this.weeklyTasks.map(t =>
+        t.id === id ? { ...t, _showActions: !t._showActions } : t
+      );
+    },
+
+    addTaskAction(taskId) {
+      const tasks = this.weeklyTasks.map(t => {
+        if (t.id !== taskId) return t;
+        return { ...t, actions: [...(t.actions ?? []), ''], _showActions: true };
+      });
+      this.weeklyTasks = tasks;
+      this.persistWeeklyTasks(this.week, tasks);
+    },
+
+    updateTaskAction(taskId, actionIdx, value) {
+      const tasks = this.weeklyTasks.map(t => {
+        if (t.id !== taskId) return t;
+        const actions = [...(t.actions ?? [])];
+        actions[actionIdx] = value;
+        return { ...t, actions };
+      });
+      this.weeklyTasks = tasks;
+      this.persistWeeklyTasks(this.week, tasks);
+    },
+
+    removeTaskAction(taskId, actionIdx) {
+      const tasks = this.weeklyTasks.map(t => {
+        if (t.id !== taskId) return t;
+        const actions = (t.actions ?? []).filter((_, i) => i !== actionIdx);
+        return { ...t, actions };
+      });
       this.weeklyTasks = tasks;
       this.persistWeeklyTasks(this.week, tasks);
     },
@@ -3095,6 +3168,7 @@ function kpiApp() {
           actions:     this.normalizeWeeklyActions(p.actions),
           went_well:   p.went_well   ?? '',
           went_bad:    p.went_bad    ?? '',
+          ad_note:     p.ad_note     ?? '',
           ad_revenues: { ...this.defaultAdRevenues(), ...(p.ad_revenues ?? {}) },
         };
         this.weeklyTasks = this.weeklyPlannerData.tasks ?? [];
