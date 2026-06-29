@@ -949,11 +949,11 @@
         </div>
       </div>
 
-      <!-- 이번 주 목표 & 달성률 -->
+      <!-- ① 지난주 계획 -->
       <div class="planner-section">
         <div class="planner-section-title">
-          ① <span x-text="weeklyPlannerData?.week_label"></span> 목표 &amp; 달성률
-          <span style="font-size:10px;font-weight:400;color:var(--dim)">· 이번 주 계획</span>
+          ① 지난주 계획
+          <span style="font-size:10px;font-weight:400;color:var(--dim)" x-text="'· ' + (weeklyPlannerData?.data_week_label || '') + ' 달성률'"></span>
         </div>
         <div class="placement-table-wrap">
           <table class="planner-goals-table">
@@ -981,6 +981,21 @@
           </table>
         </div>
         <button class="btn-add-row" @click="weeklyPlannerForm.goals.push({name:'',target:'',actual:'',actual_rate:'',status:'🟡'})">+ 목표 추가</button>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#6ee7b7;margin-bottom:6px">👍 잘한 것</div>
+            <textarea class="planner-input" rows="3" placeholder="잘된 점, 유지할 것..."
+              x-model="weeklyPlannerForm.went_well"
+              style="width:100%;resize:vertical;font-size:13px;line-height:1.5"></textarea>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#fca5a5;margin-bottom:6px">👎 못한 것</div>
+            <textarea class="planner-input" rows="3" placeholder="개선할 점, 못한 것..."
+              x-model="weeklyPlannerForm.went_bad"
+              style="width:100%;resize:vertical;font-size:13px;line-height:1.5"></textarea>
+          </div>
+        </div>
       </div>
 
       <!-- 기능별 지표 -->
@@ -1045,6 +1060,7 @@
                   <td>
                     <input type="number" min="0" step="1000" placeholder="0"
                       x-model.number="weeklyPlannerForm.ad_revenues[p.id]"
+                      @keydown.enter.prevent="saveWeeklyPlanner()"
                       style="width:110px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
                   </td>
                 </tr>
@@ -1058,38 +1074,10 @@
         </div>
       </div>
 
-      <!-- 주간 플래닝 노트 -->
-      <div class="planner-section">
-        <div class="planner-section-title">④ 주간 플래닝 노트</div>
-        <div class="notes-grid">
-          <div class="note-card">
-            <div class="note-card-header">
-              <div class="note-card-title">🎯 Weekly KPI Dashboard</div>
-              <span class="note-save-badge" :class="noteSaved.kpi_summary ? 'visible' : ''">저장됨 ✓</span>
-            </div>
-            <div id="note-editor-kpi_summary"></div>
-          </div>
-          <div class="note-card">
-            <div class="note-card-header">
-              <div class="note-card-title">🔧 Project Progress</div>
-              <span class="note-save-badge" :class="noteSaved.project_progress ? 'visible' : ''">저장됨 ✓</span>
-            </div>
-            <div id="note-editor-project_progress"></div>
-          </div>
-          <div class="note-card">
-            <div class="note-card-header">
-              <div class="note-card-title">📅 Next Week's Strategy</div>
-              <span class="note-save-badge" :class="noteSaved.next_week_strategy ? 'visible' : ''">저장됨 ✓</span>
-            </div>
-            <div id="note-editor-next_week_strategy"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 이번 주 할일 -->
+      <!-- ④ 이번주 계획 -->
       <div class="planner-section">
         <div class="planner-section-title" style="display:flex;align-items:center;justify-content:space-between">
-          <span>⑤ <span x-text="weeklyPlannerData?.week_label"></span> 할일 <span style="font-size:10px;font-weight:400;color:var(--dim)">· 이번 주에 할 일</span></span>
+          <span>④ <span x-text="weeklyPlannerData?.week_label"></span> 이번주 계획 <span style="font-size:10px;font-weight:400;color:var(--dim)">· 이번 주 할 일</span></span>
           <span class="note-save-badge" :class="weeklyTasksSaved ? 'visible' : ''">저장됨 ✓</span>
         </div>
         <div class="feedback-card">
@@ -1109,36 +1097,6 @@
             <button class="task-add-btn" @click="addWeeklyTask()">추가</button>
           </div>
         </div>
-      </div>
-
-      <!-- 핵심 액션 -->
-      <div class="planner-section">
-        <div class="planner-section-title">⑥ <span x-text="weeklyPlannerData?.week_label"></span> 핵심 액션</div>
-        <div class="action-card-list">
-          <template x-for="(action, idx) in weeklyPlannerForm.actions" :key="action.id">
-            <div class="action-card">
-              <div class="action-card-header">
-                <span class="action-card-num" x-text="idx + 1"></span>
-                <div class="action-move-btns">
-                  <button type="button" class="action-move-btn" :disabled="idx === 0" @click="moveWeeklyActionUp(idx)" title="위로">▲</button>
-                  <button type="button" class="action-move-btn" :disabled="idx === weeklyPlannerForm.actions.length - 1" @click="moveWeeklyActionDown(idx)" title="아래로">▼</button>
-                </div>
-                <div class="action-fields">
-                  <input type="text" placeholder="채널" x-model="action.channel">
-                  <input type="text" placeholder="핵심 액션" x-model="action.action">
-                  <input type="text" placeholder="목표" x-model="action.goal">
-                  <input type="text" placeholder="마감" x-model="action.deadline">
-                </div>
-                <button type="button" class="btn-del-row" @click="removeWeeklyAction(idx)" title="삭제">×</button>
-              </div>
-              <div class="action-card-tasks">
-                <div class="action-card-tasks-label">구체적 할일</div>
-                <div class="action-task-editor" :id="'weekly-action-task-editor-' + action.id"></div>
-              </div>
-            </div>
-          </template>
-        </div>
-        <button type="button" class="btn-add-row" @click="addWeeklyAction()">+ 액션 추가</button>
       </div>
 
     </div>
@@ -1678,6 +1636,8 @@ function kpiApp() {
       north_star: '',
       goals: [],
       actions: [],
+      went_well: '',
+      went_bad: '',
       ad_revenues: { top: 0, center: 0, bottom: 0, popular_slot: 0, popup: 0 },
     },
     plannerForm: {
@@ -3133,6 +3093,8 @@ function kpiApp() {
           north_star:  p.north_star  ?? '',
           goals:       p.goals       ?? [],
           actions:     this.normalizeWeeklyActions(p.actions),
+          went_well:   p.went_well   ?? '',
+          went_bad:    p.went_bad    ?? '',
           ad_revenues: { ...this.defaultAdRevenues(), ...(p.ad_revenues ?? {}) },
         };
         this.weeklyTasks = this.weeklyPlannerData.tasks ?? [];
