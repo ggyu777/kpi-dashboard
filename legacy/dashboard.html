@@ -2590,7 +2590,7 @@ function kpiApp() {
 
     isCurrentPeriod() {
       if (this.viewMode === 'weekly' || this.viewMode === 'weekly-planner') return this.week === getISOWeekKey();
-      return this.month === getCurrentMonthKey();
+      return this.month >= offsetMonth(getCurrentMonthKey(), 1);
     },
 
     async loadEvents() {
