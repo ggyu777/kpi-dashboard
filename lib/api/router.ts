@@ -899,6 +899,7 @@ interface MPlan {
   kpt_keep?: string; kpt_problem?: string; kpt_try?: string;
   next_actions?: MPlanNextAction[];
   d7_retention_manual?: number | null; d7_note?: string;
+  d7_weeks?: Array<{ label?: string; rate?: number | null; note?: string }>;
   monthly_note?: string;
   ad_revenues?: Record<string, number>;
 }
@@ -981,6 +982,10 @@ function buildMonthlyMd(d: MonthlyData): string {
     ? kpi.d7_retention_rate.toFixed(1) + "%"
     : (plan.d7_retention_manual != null ? plan.d7_retention_manual.toFixed(1) + "% (수동)" : "—");
   const d7Note = plan.d7_note ? ` · ${plan.d7_note}` : "";
+  const d7Weeks = plan.d7_weeks ?? [];
+  const d7WeekRows = d7Weeks.length > 0
+    ? d7Weeks.map((w) => `| ${w.label ?? ""} | ${w.rate != null ? w.rate.toFixed(1) + "%" : "—"} | ${w.note ?? ""} |`).join("\n")
+    : "";
 
   return `# 📅 ${monthLabel} | Monthly Plan | 플랫폼팀
 
@@ -1021,6 +1026,7 @@ ${kptTry}
 | 누적 사용자 | — | ${fmtNum(kpi.cumulative_users)} | — |
 | W1 리텐션 | — | ${d7Rate}${d7Note} | — |
 
+${d7WeekRows ? `\n**W1 리텐션 주차별 상세**\n\n| 주차 | W1 리텐션 | 메모 |\n|------|---------|-----|\n${d7WeekRows}\n` : ""}
 ---
 
 ## ④ 기능별 지표 (${dataLabel} 실적 · GA4 자동 · MoM)
